@@ -4,36 +4,56 @@ let employeesData = [];
 let filteredData = [];
 let charts = {};
 
-// Mock data generator
-function generateMockData() {
-    const departments = ['المبيعات', 'التسويق', 'الموارد البشرية', 'تكنولوجيا المعلومات', 'المحاسبة', 'العمليات'];
-    const positions = ['مدير', 'نائب مدير', 'رئيس قسم', 'أخصائي أول', 'أخصائي', 'موظف'];
-    const educationLevels = ['دكتوراه', 'ماجستير', 'بكالوريوس', 'دبلوم', 'ثانوية عامة'];
-    const names = ['أحمد محمد', 'فاطمة علي', 'محمود حسن', 'نورا سعد', 'خالد أحمد', 'سارة محمد', 'عبدالله خالد', 'منى حسام', 'يوسف عبدالله', 'ريم محمود'];
-    
-    const data = [];
-    const currentYear = new Date().getFullYear();
-    
-    for (let i = 0; i < 150; i++) {
-        const hireDate = new Date(2020 + Math.floor(Math.random() * 4), Math.floor(Math.random() * 12), Math.floor(Math.random() * 28));
-        const age = 25 + Math.floor(Math.random() * 25);
-        
-        data.push({
-            id: i + 1,
-            name: names[Math.floor(Math.random() * names.length)] + ' ' + (i + 1),
-            department: departments[Math.floor(Math.random() * departments.length)],
-            position: positions[Math.floor(Math.random() * positions.length)],
-            hireDate: hireDate,
-            education: educationLevels[Math.floor(Math.random() * educationLevels.length)],
-            age: age,
-            salary: 3000 + Math.floor(Math.random() * 12000),
-            gender: Math.random() > 0.6 ? 'ذكر' : 'أنثى',
-            isActive: Math.random() > 0.1,
-            absenceDays: Math.floor(Math.random() * 30)
-        });
+// API Functions
+async function fetchEmployees(filters = {}) {
+    try {
+        const params = new URLSearchParams();
+        if (filters.departmentId) params.append('departmentId', filters.departmentId);
+        if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
+        if (filters.dateTo) params.append('dateTo', filters.dateTo);
+
+        const response = await fetch(`/api/employees?${params}`);
+        return await response.json();
+    } catch (error) {
+        console.error('خطأ في جلب الموظفين:', error);
+        return [];
     }
-    
-    return data;
+}
+
+async function fetchStats() {
+    try {
+        const response = await fetch('/api/stats');
+        return await response.json();
+    } catch (error) {
+        console.error('خطأ في جلب الإحصائيات:', error);
+        return null;
+    }
+}
+
+async function addNewEmployee(employeeData) {
+    try {
+        const response = await fetch('/api/employees', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(employeeData),
+        });
+        return await response.json();
+    } catch (error) {
+        console.error('خطأ في إضافة الموظف:', error);
+        throw error;
+    }
+}
+
+async function seedDatabase() {
+    try {
+        const response = await fetch('/api/seed', { method: 'POST' });
+        return await response.json();
+    } catch (error) {
+        console.error('خطأ في إدراج البيانات التجريبية:', error);
+        throw error;
+    }
 }
 
 // Initialize dashboard
@@ -49,22 +69,36 @@ function initializeDashboard() {
     document.getElementById('loadDataBtn').addEventListener('click', loadData);
     document.getElementById('applyFilters').addEventListener('click', applyFilters);
     document.getElementById('exportBtn').addEventListener('click', exportReport);
+    
+    // إضافة حدث لزر إضافة موظف جديد
+    const addEmployeeBtn = document.createElement('button');
+    addEmployeeBtn.className = 'btn btn-secondary';
+    addEmployeeBtn.innerHTML = '<i class="fas fa-plus"></i> إضافة موظف';
+    addEmployeeBtn.addEventListener('click', showAddEmployeeModal);
+    document.querySelector('.header-controls').appendChild(addEmployeeBtn);
 }
 
 // Load data function
 async function loadData() {
     showLoading(true);
     
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    employeesData = generateMockData();
-    filteredData = [...employeesData];
-    
-    populateDepartmentFilter();
-    updateDashboard();
-    
-    showLoading(false);
+    try {
+        // إدراج البيانات التجريبية إذا كانت قاعدة البيانات فارغة
+        await seedDatabase();
+        
+        // جلب البيانات من قاعدة البيانات
+        employeesData = await fetchEmployees();
+        filteredData = [...employeesData];
+        
+        populateDepartmentFilter();
+        updateDashboard();
+        
+        showMessage('تم تحميل البيانات بنجاح!', 'success');
+    } catch (error) {
+        showMessage('خطأ في تحميل البيانات', 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // Show/hide loading spinner
@@ -72,59 +106,109 @@ function showLoading(show) {
     document.getElementById('loadingSpinner').style.display = show ? 'flex' : 'none';
 }
 
+// Show message function
+function showMessage(message, type) {
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `message ${type}`;
+    messageDiv.textContent = message;
+    messageDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        padding: 15px 20px;
+        border-radius: 8px;
+        background: ${type === 'success' ? '#48bb78' : '#f56565'};
+        color: white;
+        z-index: 1000;
+        font-family: Cairo, sans-serif;
+    `;
+    
+    document.body.appendChild(messageDiv);
+    setTimeout(() => messageDiv.remove(), 3000);
+}
+
 // Populate department filter
 function populateDepartmentFilter() {
     const departmentSelect = document.getElementById('departmentFilter');
-    const departments = [...new Set(employeesData.map(emp => emp.department))];
+    const departments = [...new Set(employeesData.map(emp => emp.department_name || emp.department))];
     
     departmentSelect.innerHTML = '<option value="">جميع الأقسام</option>';
     departments.forEach(dept => {
-        departmentSelect.innerHTML += `<option value="${dept}">${dept}</option>`;
+        if (dept) {
+            departmentSelect.innerHTML += `<option value="${dept}">${dept}</option>`;
+        }
     });
 }
 
 // Apply filters
-function applyFilters() {
-    const dateFrom = new Date(document.getElementById('dateFrom').value);
-    const dateTo = new Date(document.getElementById('dateTo').value);
-    const department = document.getElementById('departmentFilter').value;
+async function applyFilters() {
+    showLoading(true);
     
-    filteredData = employeesData.filter(emp => {
-        const empDate = new Date(emp.hireDate);
-        const dateMatch = (!document.getElementById('dateFrom').value || empDate >= dateFrom) &&
-                         (!document.getElementById('dateTo').value || empDate <= dateTo);
-        const deptMatch = !department || emp.department === department;
+    try {
+        const filters = {};
+        const dateFrom = document.getElementById('dateFrom').value;
+        const dateTo = document.getElementById('dateTo').value;
+        const department = document.getElementById('departmentFilter').value;
         
-        return dateMatch && deptMatch;
-    });
-    
-    updateDashboard();
+        if (dateFrom) filters.dateFrom = dateFrom;
+        if (dateTo) filters.dateTo = dateTo;
+        if (department) {
+            // البحث عن معرف القسم (هذا مبسط للتوضيح)
+            filters.departmentName = department;
+        }
+        
+        employeesData = await fetchEmployees(filters);
+        filteredData = [...employeesData];
+        
+        updateDashboard();
+        showMessage('تم تطبيق الفلاتر بنجاح!', 'success');
+    } catch (error) {
+        showMessage('خطأ في تطبيق الفلاتر', 'error');
+    } finally {
+        showLoading(false);
+    }
 }
 
 // Update dashboard
-function updateDashboard() {
-    updateKPIs();
+async function updateDashboard() {
+    await updateKPIs();
     updateCharts();
     updateTable();
 }
 
 // Update KPIs
-function updateKPIs() {
-    const activeEmployees = filteredData.filter(emp => emp.isActive);
-    const totalEmployees = activeEmployees.length;
-    const leftEmployees = filteredData.filter(emp => !emp.isActive).length;
-    
-    const turnoverRate = totalEmployees > 0 ? ((leftEmployees / (totalEmployees + leftEmployees)) * 100).toFixed(1) : 0;
-    const avgAbsence = totalEmployees > 0 ? (activeEmployees.reduce((sum, emp) => sum + emp.absenceDays, 0) / totalEmployees / 250 * 100).toFixed(1) : 0;
-    const avgExperience = totalEmployees > 0 ? (activeEmployees.reduce((sum, emp) => {
-        const years = (new Date() - new Date(emp.hireDate)) / (1000 * 60 * 60 * 24 * 365);
-        return sum + years;
-    }, 0) / totalEmployees).toFixed(1) : 0;
-    
-    document.getElementById('totalEmployees').textContent = totalEmployees;
-    document.getElementById('turnoverRate').textContent = turnoverRate + '%';
-    document.getElementById('absenceRate').textContent = avgAbsence + '%';
-    document.getElementById('avgExperience').textContent = avgExperience;
+async function updateKPIs() {
+    try {
+        const stats = await fetchStats();
+        if (!stats) return;
+        
+        const activeEmployees = filteredData.filter(emp => emp.is_active);
+        const totalEmployees = activeEmployees.length;
+        
+        // حساب معدل دوران الموظفين
+        const turnoverRate = stats.turnover.total_employees > 0 
+            ? ((stats.turnover.left_employees / stats.turnover.total_employees) * 100).toFixed(1)
+            : 0;
+        
+        // حساب نسبة الغياب
+        const avgAbsence = stats.active.avg_absence 
+            ? (parseFloat(stats.active.avg_absence) / 250 * 100).toFixed(1)
+            : 0;
+        
+        // حساب متوسط سنوات الخبرة
+        const avgExperience = totalEmployees > 0 ? (activeEmployees.reduce((sum, emp) => {
+            const hireDate = new Date(emp.hire_date);
+            const years = (new Date() - hireDate) / (1000 * 60 * 60 * 24 * 365);
+            return sum + years;
+        }, 0) / totalEmployees).toFixed(1) : 0;
+        
+        document.getElementById('totalEmployees').textContent = totalEmployees;
+        document.getElementById('turnoverRate').textContent = turnoverRate + '%';
+        document.getElementById('absenceRate').textContent = avgAbsence + '%';
+        document.getElementById('avgExperience').textContent = avgExperience;
+    } catch (error) {
+        console.error('خطأ في تحديث المؤشرات:', error);
+    }
 }
 
 // Update charts
@@ -144,11 +228,14 @@ function updateDepartmentChart() {
         charts.department.destroy();
     }
     
-    const activeEmployees = filteredData.filter(emp => emp.isActive);
+    const activeEmployees = filteredData.filter(emp => emp.is_active);
     const deptData = {};
     
     activeEmployees.forEach(emp => {
-        deptData[emp.department] = (deptData[emp.department] || 0) + 1;
+        const dept = emp.department_name || emp.department;
+        if (dept) {
+            deptData[dept] = (deptData[dept] || 0) + 1;
+        }
     });
     
     charts.department = new Chart(ctx, {
@@ -190,11 +277,13 @@ function updateEducationChart() {
         charts.education.destroy();
     }
     
-    const activeEmployees = filteredData.filter(emp => emp.isActive);
+    const activeEmployees = filteredData.filter(emp => emp.is_active);
     const eduData = {};
     
     activeEmployees.forEach(emp => {
-        eduData[emp.education] = (eduData[emp.education] || 0) + 1;
+        if (emp.education) {
+            eduData[emp.education] = (eduData[emp.education] || 0) + 1;
+        }
     });
     
     charts.education = new Chart(ctx, {
@@ -238,7 +327,7 @@ function updateHiringTrendChart() {
     const monthlyHiring = {};
     
     filteredData.forEach(emp => {
-        const date = new Date(emp.hireDate);
+        const date = new Date(emp.hire_date);
         const month = date.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long' });
         monthlyHiring[month] = (monthlyHiring[month] || 0) + 1;
     });
@@ -299,7 +388,7 @@ function updateAgeDistributionChart() {
         charts.ageDistribution.destroy();
     }
     
-    const activeEmployees = filteredData.filter(emp => emp.isActive);
+    const activeEmployees = filteredData.filter(emp => emp.is_active);
     const ageGroups = {
         '20-29': 0,
         '30-39': 0,
@@ -308,10 +397,11 @@ function updateAgeDistributionChart() {
     };
     
     activeEmployees.forEach(emp => {
-        if (emp.age >= 20 && emp.age <= 29) ageGroups['20-29']++;
-        else if (emp.age >= 30 && emp.age <= 39) ageGroups['30-39']++;
-        else if (emp.age >= 40 && emp.age <= 49) ageGroups['40-49']++;
-        else ageGroups['50+']++;
+        const age = emp.age;
+        if (age >= 20 && age <= 29) ageGroups['20-29']++;
+        else if (age >= 30 && age <= 39) ageGroups['30-39']++;
+        else if (age >= 40 && age <= 49) ageGroups['40-49']++;
+        else if (age >= 50) ageGroups['50+']++;
     });
     
     charts.ageDistribution = new Chart(ctx, {
@@ -366,11 +456,13 @@ function updateGenderChart() {
         charts.gender.destroy();
     }
     
-    const activeEmployees = filteredData.filter(emp => emp.isActive);
+    const activeEmployees = filteredData.filter(emp => emp.is_active);
     const genderData = {};
     
     activeEmployees.forEach(emp => {
-        genderData[emp.gender] = (genderData[emp.gender] || 0) + 1;
+        if (emp.gender) {
+            genderData[emp.gender] = (genderData[emp.gender] || 0) + 1;
+        }
     });
     
     charts.gender = new Chart(ctx, {
@@ -406,37 +498,81 @@ function updateTable() {
     const tbody = document.querySelector('#employeesTable tbody');
     tbody.innerHTML = '';
     
-    const activeEmployees = filteredData.filter(emp => emp.isActive).slice(0, 20);
+    const activeEmployees = filteredData.filter(emp => emp.is_active).slice(0, 20);
     
     activeEmployees.forEach(emp => {
         const row = tbody.insertRow();
+        const hireDate = new Date(emp.hire_date).toLocaleDateString('ar-SA');
+        const salary = emp.salary ? parseFloat(emp.salary).toLocaleString() : 'غير محدد';
+        
         row.innerHTML = `
             <td>${emp.name}</td>
-            <td>${emp.department}</td>
-            <td>${emp.position}</td>
-            <td>${emp.hireDate.toLocaleDateString('ar-SA')}</td>
-            <td>${emp.education}</td>
-            <td>${emp.age}</td>
-            <td>${emp.salary.toLocaleString()} ريال</td>
+            <td>${emp.department_name || emp.department || 'غير محدد'}</td>
+            <td>${emp.position || 'غير محدد'}</td>
+            <td>${hireDate}</td>
+            <td>${emp.education || 'غير محدد'}</td>
+            <td>${emp.age || 'غير محدد'}</td>
+            <td>${salary} ريال</td>
         `;
     });
+}
+
+// Show add employee modal (مبسط)
+function showAddEmployeeModal() {
+    const name = prompt('اسم الموظف:');
+    if (!name) return;
+    
+    const department = prompt('القسم:');
+    if (!department) return;
+    
+    const position = prompt('المنصب:');
+    const education = prompt('المؤهل التعليمي:');
+    const age = parseInt(prompt('العمر:')) || 30;
+    const salary = parseFloat(prompt('الراتب:')) || 5000;
+    const gender = prompt('الجنس (ذكر/أنثى):') || 'ذكر';
+    
+    const employeeData = {
+        name,
+        department,
+        position,
+        hireDate: new Date().toISOString().split('T')[0],
+        education,
+        age,
+        salary,
+        gender
+    };
+    
+    addNewEmployee(employeeData)
+        .then(() => {
+            showMessage('تم إضافة الموظف بنجاح!', 'success');
+            loadData(); // إعادة تحميل البيانات
+        })
+        .catch(() => {
+            showMessage('خطأ في إضافة الموظف', 'error');
+        });
 }
 
 // Export report
 function exportReport() {
     const reportData = {
-        totalEmployees: filteredData.filter(emp => emp.isActive).length,
+        totalEmployees: filteredData.filter(emp => emp.is_active).length,
         departmentDistribution: {},
         educationDistribution: {},
         timestamp: new Date().toLocaleString('ar-SA')
     };
     
     // Calculate distributions
-    filteredData.filter(emp => emp.isActive).forEach(emp => {
-        reportData.departmentDistribution[emp.department] = 
-            (reportData.departmentDistribution[emp.department] || 0) + 1;
-        reportData.educationDistribution[emp.education] = 
-            (reportData.educationDistribution[emp.education] || 0) + 1;
+    filteredData.filter(emp => emp.is_active).forEach(emp => {
+        const dept = emp.department_name || emp.department;
+        if (dept) {
+            reportData.departmentDistribution[dept] = 
+                (reportData.departmentDistribution[dept] || 0) + 1;
+        }
+        
+        if (emp.education) {
+            reportData.educationDistribution[emp.education] = 
+                (reportData.educationDistribution[emp.education] || 0) + 1;
+        }
     });
     
     const dataStr = JSON.stringify(reportData, null, 2);
