@@ -130,13 +130,30 @@ function showMessage(message, type) {
 // Populate department filter
 function populateDepartmentFilter() {
     const departmentSelect = document.getElementById('departmentFilter');
-    const departments = [...new Set(employeesData.map(emp => emp.department_name || emp.department))];
+    
+    // قائمة الأقسام المحددة مسبقاً
+    const predefinedDepartments = [
+        'الموارد البشرية',
+        'المحاسبة والمالية',
+        'الإدارة العامة',
+        'التأمين والمخاطر',
+        'المبيعات والتسويق',
+        'تكنولوجيا المعلومات',
+        'تطوير البرمجيات',
+        'أمن المعلومات',
+        'تطوير التطبيقات',
+        'الذكاء الاصطناعي'
+    ];
+    
+    // الحصول على الأقسام من البيانات
+    const dataDepartments = [...new Set(employeesData.map(emp => emp.department_name || emp.department))];
+    
+    // دمج الأقسام المحددة مسبقاً مع الأقسام من البيانات
+    const allDepartments = [...new Set([...predefinedDepartments, ...dataDepartments])].filter(dept => dept);
     
     departmentSelect.innerHTML = '<option value="">جميع الأقسام</option>';
-    departments.forEach(dept => {
-        if (dept) {
-            departmentSelect.innerHTML += `<option value="${dept}">${dept}</option>`;
-        }
+    allDepartments.forEach(dept => {
+        departmentSelect.innerHTML += `<option value="${dept}">${dept}</option>`;
     });
 }
 
