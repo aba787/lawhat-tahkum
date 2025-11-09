@@ -21,6 +21,9 @@ app.use(express.static('.'));
 // تهيئة قاعدة البيانات عند بدء الخادم
 initializeDatabase().then(() => {
     console.log('تم تهيئة قاعدة البيانات');
+}).catch((error) => {
+    console.error('خطأ في تهيئة قاعدة البيانات:', error);
+    console.log('تأكد من إنشاء قاعدة البيانات PostgreSQL في Replit');
 });
 
 // الصفحة الرئيسية

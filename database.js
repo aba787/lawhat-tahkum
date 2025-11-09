@@ -4,7 +4,17 @@ const { Pool } = require('pg');
 // إعداد اتصال قاعدة البيانات
 const pool = new Pool({
     connectionString: process.env.DATABASE_URL,
-    max: 10
+    max: 10,
+    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
+
+// Test connection
+pool.on('connect', () => {
+    console.log('تم الاتصال بقاعدة البيانات بنجاح');
+});
+
+pool.on('error', (err) => {
+    console.error('خطأ في اتصال قاعدة البيانات:', err);
 });
 
 // إنشاء الجداول المطلوبة
