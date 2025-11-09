@@ -5,7 +5,7 @@ modules = ["nodejs-20", "web"]
 channel = "stable-24_11"
 
 [deployment]
-run = ["node", "server.js"]
+run = ["sh", "-c", "node server.js"]
 deploymentTarget = "cloudrun"
 
 [workflows]
