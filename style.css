@@ -20,7 +20,7 @@ body {
 
 /* Header Styles */
 .dashboard-header {
-    background: rgba(255, 255, 255, 0.95);
+    background: #D4B896;
     backdrop-filter: blur(10px);
     border-radius: 15px;
     padding: 20px 30px;
@@ -83,7 +83,7 @@ body {
 
 /* Filters Section */
 .filters-section {
-    background: rgba(255, 255, 255, 0.95);
+    background: #D4B896;
     backdrop-filter: blur(10px);
     border-radius: 15px;
     padding: 20px;
@@ -127,7 +127,7 @@ body {
 }
 
 .kpi-card {
-    background: rgba(255, 255, 255, 0.95);
+    background: #D4B896;
     backdrop-filter: blur(10px);
     border-radius: 15px;
     padding: 25px;
@@ -175,7 +175,7 @@ body {
 }
 
 .chart-container {
-    background: rgba(255, 255, 255, 0.95);
+    background: #D4B896;
     backdrop-filter: blur(10px);
     border-radius: 15px;
     padding: 25px;
@@ -199,7 +199,7 @@ body {
 
 /* Table Section */
 .table-section {
-    background: rgba(255, 255, 255, 0.95);
+    background: #D4B896;
     backdrop-filter: blur(10px);
     border-radius: 15px;
     padding: 25px;
@@ -243,7 +243,7 @@ tbody tr:hover {
 .detailed-stats-section {
     margin: 2rem 0;
     padding: 1.5rem;
-    background: white;
+    background: #D4B896;
     border-radius: 12px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
 }
