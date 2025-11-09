@@ -6,7 +6,7 @@
 
 body {
     font-family: 'Cairo', Arial, sans-serif;
-    background: linear-gradient(135deg, #8B1538 0%, #A0522D 50%, #F5E6D3 100%);
+    background: #8B1538;
     min-height: 100vh;
     direction: rtl;
     color: #F5E6D3;
