@@ -40,8 +40,16 @@ async function initializeDatabase() {
 
         // إدراج الأقسام الأساسية إذا لم تكن موجودة
         const departments = [
-            'المبيعات', 'التسويق', 'الموارد البشرية', 
-            'تكنولوجيا المعلومات', 'المحاسبة', 'العمليات'
+            'الموارد البشرية',
+            'المحاسبة والمالية', 
+            'الإدارة العامة',
+            'التأمين والمخاطر',
+            'تكنولوجيا المعلومات',
+            'المبيعات والتسويق',
+            'العمليات والإنتاج',
+            'الشؤون القانونية',
+            'خدمة العملاء',
+            'التطوير والبحث'
         ];
 
         for (const dept of departments) {
@@ -181,29 +189,51 @@ async function seedDatabase() {
         }
 
         const departments = await pool.query('SELECT * FROM departments');
-        const names = ['أحمد محمد', 'فاطمة علي', 'محمود حسن', 'نورا سعد', 'خالد أحمد'];
-        const positions = ['مدير', 'نائب مدير', 'رئيس قسم', 'أخصائي أول', 'أخصائي'];
-        const educationLevels = ['دكتوراه', 'ماجستير', 'بكالوريوس', 'دبلوم'];
+        const names = [
+            'أحمد محمد الأحمدي', 'فاطمة علي السعدي', 'محمود حسن القحطاني', 
+            'نورا سعد العتيبي', 'خالد أحمد المطيري', 'سارة عبدالله الدوسري',
+            'عبدالعزيز محمد الزهراني', 'هدى عبدالرحمن الشهري', 'يوسف علي الغامدي',
+            'ريم خالد العنزي', 'عمر عبدالله الحربي', 'نادية محمد الجهني',
+            'إبراهيم سعد البقمي', 'منى حسن الفيصل', 'طارق عبدالعزيز السبيعي'
+        ];
+        const positions = [
+            'مدير عام', 'نائب المدير', 'رئيس قسم', 'مدير إدارة', 'نائب رئيس القسم',
+            'أخصائي أول', 'أخصائي', 'محاسب أول', 'محاسب', 'مطور أول', 'مطور',
+            'مستشار قانوني', 'أخصائي مخاطر', 'محلل مالي', 'مسؤول تأمين', 'منسق إداري'
+        ];
+        const educationLevels = ['دكتوراه', 'ماجستير', 'بكالوريوس', 'دبلوم عالي', 'دبلوم'];
 
-        for (let i = 0; i < 50; i++) {
+        for (let i = 0; i < 100; i++) {
             const dept = departments.rows[Math.floor(Math.random() * departments.rows.length)];
             const hireDate = new Date(2020 + Math.floor(Math.random() * 4), 
                                     Math.floor(Math.random() * 12), 
                                     Math.floor(Math.random() * 28));
             
+            // تنويع الراتب حسب المنصب والمؤهل
+            const position = positions[Math.floor(Math.random() * positions.length)];
+            const education = educationLevels[Math.floor(Math.random() * educationLevels.length)];
+            let baseSalary = 4000;
+            
+            if (position.includes('مدير')) baseSalary = 12000;
+            else if (position.includes('رئيس') || position.includes('أول')) baseSalary = 8000;
+            else if (position.includes('أخصائي')) baseSalary = 6000;
+            
+            if (education === 'دكتوراه') baseSalary += 2000;
+            else if (education === 'ماجستير') baseSalary += 1000;
+
             await pool.query(`
                 INSERT INTO employees (name, department_id, position, hire_date, education, age, salary, gender, absence_days)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
             `, [
-                names[Math.floor(Math.random() * names.length)] + ' ' + (i + 1),
+                names[Math.floor(Math.random() * names.length)],
                 dept.id,
-                positions[Math.floor(Math.random() * positions.length)],
+                position,
                 hireDate,
-                educationLevels[Math.floor(Math.random() * educationLevels.length)],
-                25 + Math.floor(Math.random() * 25),
-                3000 + Math.floor(Math.random() * 12000),
-                Math.random() > 0.6 ? 'ذكر' : 'أنثى',
-                Math.floor(Math.random() * 30)
+                education,
+                22 + Math.floor(Math.random() * 38), // أعمار من 22 إلى 60
+                baseSalary + Math.floor(Math.random() * 3000), // تنويع في الراتب
+                Math.random() > 0.55 ? 'ذكر' : 'أنثى', // توزيع أكثر توازناً
+                Math.floor(Math.random() * 25) // أيام غياب من 0 إلى 24
             ]);
         }
 

@@ -174,6 +174,7 @@ async function updateDashboard() {
     await updateKPIs();
     updateCharts();
     updateTable();
+    updateDepartmentCards();
 }
 
 // Update KPIs
@@ -446,6 +447,79 @@ function updateAgeDistributionChart() {
             }
         }
     });
+
+
+// Update department cards with detailed stats
+function updateDepartmentCards() {
+    const grid = document.getElementById('departmentCardsGrid');
+    if (!grid) return;
+    
+    grid.innerHTML = '';
+    
+    const activeEmployees = filteredData.filter(emp => emp.is_active);
+    const deptStats = {};
+    
+    // حساب الإحصائيات لكل قسم
+    activeEmployees.forEach(emp => {
+        const dept = emp.department_name || emp.department || 'غير محدد';
+        if (!deptStats[dept]) {
+            deptStats[dept] = {
+                count: 0,
+                totalSalary: 0,
+                avgAge: 0,
+                totalAge: 0,
+                maleCount: 0,
+                femaleCount: 0,
+                avgAbsence: 0,
+                totalAbsence: 0
+            };
+        }
+        
+        deptStats[dept].count++;
+        deptStats[dept].totalSalary += emp.salary || 0;
+        deptStats[dept].totalAge += emp.age || 0;
+        deptStats[dept].totalAbsence += emp.absence_days || 0;
+        
+        if (emp.gender === 'ذكر') deptStats[dept].maleCount++;
+        else if (emp.gender === 'أنثى') deptStats[dept].femaleCount++;
+    });
+    
+    // حساب المتوسطات وإنشاء البطاقات
+    Object.keys(deptStats).forEach(dept => {
+        const stats = deptStats[dept];
+        if (stats.count > 0) {
+            stats.avgSalary = Math.round(stats.totalSalary / stats.count);
+            stats.avgAge = Math.round(stats.totalAge / stats.count);
+            stats.avgAbsence = Math.round(stats.totalAbsence / stats.count);
+            
+            const card = document.createElement('div');
+            card.className = 'department-card';
+            card.innerHTML = `
+                <h4>${dept}</h4>
+                <div class="department-card-stats">
+                    <div class="department-stat">
+                        <div class="department-stat-value">${stats.count}</div>
+                        <div class="department-stat-label">عدد الموظفين</div>
+                    </div>
+                    <div class="department-stat">
+                        <div class="department-stat-value">${stats.avgSalary.toLocaleString()}</div>
+                        <div class="department-stat-label">متوسط الراتب</div>
+                    </div>
+                    <div class="department-stat">
+                        <div class="department-stat-value">${stats.avgAge}</div>
+                        <div class="department-stat-label">متوسط العمر</div>
+                    </div>
+                    <div class="department-stat">
+                        <div class="department-stat-value">${stats.avgAbsence}</div>
+                        <div class="department-stat-label">متوسط أيام الغياب</div>
+                    </div>
+                </div>
+            `;
+            grid.appendChild(card);
+        }
+    });
+}
+
 }
 
 // Gender distribution chart

@@ -1,4 +1,3 @@
-
 * {
     margin: 0;
     padding: 0;
@@ -240,6 +239,71 @@ tbody tr:hover {
     background-color: #f7fafc;
 }
 
+/* Detailed Stats Section */
+.detailed-stats-section {
+    margin: 2rem 0;
+    padding: 1.5rem;
+    background: white;
+    border-radius: 12px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.detailed-stats-section h3 {
+    color: #2d3748;
+    margin-bottom: 1.5rem;
+    text-align: center;
+    font-size: 1.4rem;
+}
+
+.department-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+    margin-top: 1rem;
+}
+
+.department-card {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 1.5rem;
+    border-radius: 12px;
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.department-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+}
+
+.department-card h4 {
+    font-size: 1.2rem;
+    margin-bottom: 1rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
+    padding-bottom: 0.5rem;
+}
+
+.department-card-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+}
+
+.department-stat {
+    text-align: center;
+}
+
+.department-stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-bottom: 0.25rem;
+}
+
+.department-stat-label {
+    font-size: 0.85rem;
+    opacity: 0.9;
+}
+
 /* Loading Spinner */
 .loading-spinner {
     position: fixed;
@@ -247,12 +311,13 @@ tbody tr:hover {
     left: 0;
     right: 0;
     bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
+    background: rgba(0, 0, 0, 0.8);
     display: flex;
     flex-direction: column;
-    align-items: center;
     justify-content: center;
+    align-items: center;
     z-index: 1000;
+    color: white;
 }
 
 .spinner {
@@ -281,22 +346,22 @@ tbody tr:hover {
     .dashboard-container {
         padding: 10px;
     }
-    
+
     .dashboard-header {
         flex-direction: column;
         gap: 20px;
         text-align: center;
     }
-    
+
     .filters-section {
         flex-direction: column;
         align-items: stretch;
     }
-    
+
     .charts-section {
         grid-template-columns: 1fr;
     }
-    
+
     .kpis-section {
         grid-template-columns: 1fr;
     }
