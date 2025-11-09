@@ -5,8 +5,12 @@ modules = ["nodejs-20", "web"]
 channel = "stable-24_11"
 
 [deployment]
-run = ["sh", "-c", "node server.js"]
+run = ["node", "server.js"]
 deploymentTarget = "cloudrun"
+
+[[deployment.ports]]
+localPort = 5000
+externalPort = 80
 
 [workflows]
 runButton = "Run HR Dashboard"
