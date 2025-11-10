@@ -1,4 +1,3 @@
-
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
@@ -67,7 +66,7 @@
                     <div class="kpi-value" id="totalEmployees">0</div>
                 </div>
             </div>
-            
+
             <div class="kpi-card">
                 <div class="kpi-icon">
                     <i class="fas fa-sync-alt"></i>
@@ -77,7 +76,7 @@
                     <div class="kpi-value" id="turnoverRate">0%</div>
                 </div>
             </div>
-            
+
             <div class="kpi-card">
                 <div class="kpi-icon">
                     <i class="fas fa-calendar-times"></i>
@@ -87,7 +86,7 @@
                     <div class="kpi-value" id="absenceRate">0%</div>
                 </div>
             </div>
-            
+
             <div class="kpi-card">
                 <div class="kpi-icon">
                     <i class="fas fa-clock"></i>
@@ -105,17 +104,17 @@
                 <h3>توزيع الموظفين حسب الأقسام</h3>
                 <canvas id="departmentChart"></canvas>
             </div>
-            
+
             <div class="chart-container">
                 <h3>توزيع المؤهلات التعليمية</h3>
                 <canvas id="educationChart"></canvas>
             </div>
-            
+
             <div class="chart-container wide">
                 <h3>معدل التوظيف الشهري</h3>
                 <canvas id="hiringTrendChart"></canvas>
             </div>
-            
+
             <div class="chart-container">
 
 
@@ -130,7 +129,7 @@
                 <h3>التوزيع العمري للموظفين</h3>
                 <canvas id="ageDistributionChart"></canvas>
             </div>
-            
+
             <div class="chart-container">
                 <h3>نسبة الجنس</h3>
                 <canvas id="genderChart"></canvas>
@@ -160,11 +159,13 @@
         </div>
 
         <!-- Loading Spinner -->
-        <div id="loadingSpinner" class="loading-spinner" style="display: none;">
-            <div class="spinner"></div>
-            <p>جاري تحميل البيانات...</p>
-        </div>
+    <div id="loadingSpinner" class="loading-spinner">
+        <div class="spinner"></div>
+        <p>جاري تحميل البيانات...</p>
     </div>
+
+    <!-- Error Message -->
+    <div id="error-message" class="error-message" style="display: none;"></div>
 
     <script src="script.js"></script>
 </body>

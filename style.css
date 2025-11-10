@@ -336,9 +336,29 @@ tbody tr:hover {
 }
 
 .loading-spinner p {
+    margin-top: 20px;
+    font-size: 16px;
+    color: #666;
+}
+
+/* Error message styling */
+.error-message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #f44336;
     color: white;
-    font-size: 1.2rem;
-    font-weight: 600;
+    padding: 15px;
+    border-radius: 5px;
+    z-index: 1000;
+    font-family: Cairo, sans-serif;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    max-width: 300px;
+    word-wrap: break-word;
+}
+
+.success-message {
+    background: #4CAF50 !important;
 }
 
 /* Responsive Design */

@@ -38,14 +38,14 @@ app.get('/api/health', async (req, res) => {
         const result = await pool.query('SELECT 1 as health_check');
         res.json({ 
             status: 'healthy', 
-            database: 'connected',
+            database: 'متصل',
             timestamp: new Date().toISOString()
         });
     } catch (error) {
         console.error('فحص صحة قاعدة البيانات فشل:', error);
         res.status(503).json({ 
             status: 'unhealthy', 
-            database: 'disconnected',
+            database: 'غير متصل',
             error: error.message 
         });
     }

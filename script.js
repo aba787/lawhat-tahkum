@@ -131,9 +131,10 @@ async function loadData() {
 
     try {
         // التحقق من حالة قاعدة البيانات أولاً
-        const isDatabaseHealthy = await checkDatabaseHealth();
-
-        if (!isDatabaseHealthy) {
+        const healthResponse = await fetch('/api/health');
+        const healthData = await healthResponse.json();
+        
+        if (!healthResponse.ok || healthData.database === 'غير متصل') {
             throw new Error('قاعدة البيانات غير متاحة. يرجى إنشاء PostgreSQL Database أولاً');
         }
 
