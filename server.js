@@ -35,20 +35,29 @@ app.get('/', (req, res) => {
 app.get('/api/health', async (req, res) => {
     try {
         const { pool } = require('./database');
-        const result = await pool.query('SELECT NOW()');
+        const result = await pool.query('SELECT 1 as health_check');
         res.json({ 
-            status: 'OK', 
-            database: 'متصل',
-            timestamp: result.rows[0].now 
+            status: 'healthy', 
+            database: 'connected',
+            timestamp: new Date().toISOString()
         });
     } catch (error) {
-        console.error('خطأ في فحص قاعدة البيانات:', error);
-        res.status(500).json({ 
-            status: 'ERROR', 
-            database: 'غير متصل',
+        console.error('فحص صحة قاعدة البيانات فشل:', error);
+        res.status(503).json({ 
+            status: 'unhealthy', 
+            database: 'disconnected',
             error: error.message 
         });
     }
+});
+
+// معالجة أخطاء أفضل في جميع routes
+app.use((error, req, res, next) => {
+    console.error('خطأ في الخادم:', error);
+    res.status(500).json({ 
+        error: 'حدث خطأ داخلي في الخادم',
+        details: process.env.NODE_ENV === 'development' ? error.message : undefined
+    });
 });
 
 // API لجلب جميع الموظفين
