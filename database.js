@@ -168,29 +168,6 @@ async function getAllEmployees(filters = {}) {
 
 // جلب إحصائيات الموظفين
 async function getEmployeeStats(filters = {}) {
-    if (useInMemory) {
-        const activeEmployees = inMemoryData.employees.filter(emp => emp.is_active);
-        const totalAge = activeEmployees.reduce((sum, emp) => sum + emp.age, 0);
-        const totalAbsence = activeEmployees.reduce((sum, emp) => sum + emp.absence_days, 0);
-
-        return {
-            active: {
-                total_active: activeEmployees.length,
-                avg_age: activeEmployees.length > 0 ? totalAge / activeEmployees.length : 0,
-                avg_absence: activeEmployees.length > 0 ? totalAbsence / activeEmployees.length : 0
-            },
-            turnover: {
-                left_employees: inMemoryData.employees.filter(emp => !emp.is_active).length,
-                total_employees: inMemoryData.employees.length
-            },
-            departments: inMemoryData.departments.map(dept => ({
-                name: dept.name,
-                count: activeEmployees.filter(emp => emp.department_id === dept.id).length
-            })),
-            education: []
-        };
-    }
-
     try {
         // إجمالي الموظفين النشطين
         const activeQuery = `

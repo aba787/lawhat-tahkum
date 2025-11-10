@@ -31,6 +31,26 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
+// التحقق من حالة قاعدة البيانات
+app.get('/api/health', async (req, res) => {
+    try {
+        const { pool } = require('./database');
+        const result = await pool.query('SELECT NOW()');
+        res.json({ 
+            status: 'OK', 
+            database: 'متصل',
+            timestamp: result.rows[0].now 
+        });
+    } catch (error) {
+        console.error('خطأ في فحص قاعدة البيانات:', error);
+        res.status(500).json({ 
+            status: 'ERROR', 
+            database: 'غير متصل',
+            error: error.message 
+        });
+    }
+});
+
 // API لجلب جميع الموظفين
 app.get('/api/employees', async (req, res) => {
     try {
@@ -40,9 +60,11 @@ app.get('/api/employees', async (req, res) => {
         if (req.query.dateTo) filters.dateTo = req.query.dateTo;
 
         const employees = await getAllEmployees(filters);
+        console.log('تم جلب الموظفين بنجاح:', employees.length);
         res.json(employees);
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب البيانات' });
+        console.error('خطأ في API جلب الموظفين:', error);
+        res.status(500).json({ error: 'خطأ في جلب البيانات: ' + error.message });
     }
 });
 
@@ -50,9 +72,11 @@ app.get('/api/employees', async (req, res) => {
 app.get('/api/stats', async (req, res) => {
     try {
         const stats = await getEmployeeStats();
+        console.log('تم جلب الإحصائيات بنجاح');
         res.json(stats);
     } catch (error) {
-        res.status(500).json({ error: 'خطأ في جلب الإحصائيات' });
+        console.error('خطأ في API الإحصائيات:', error);
+        res.status(500).json({ error: 'خطأ في جلب الإحصائيات: ' + error.message });
     }
 });
 

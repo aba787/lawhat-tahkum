@@ -83,6 +83,12 @@ async function loadData() {
     showLoading(true);
     
     try {
+        // التحقق من حالة قاعدة البيانات أولاً
+        const healthResponse = await fetch('/api/health');
+        if (!healthResponse.ok) {
+            throw new Error('قاعدة البيانات غير متاحة');
+        }
+        
         // إدراج البيانات التجريبية إذا كانت قاعدة البيانات فارغة
         await seedDatabase();
         
@@ -90,12 +96,18 @@ async function loadData() {
         employeesData = await fetchEmployees();
         filteredData = [...employeesData];
         
+        if (employeesData.length === 0) {
+            showMessage('لا توجد بيانات في قاعدة البيانات', 'error');
+            return;
+        }
+        
         populateDepartmentFilter();
         updateDashboard();
         
-        showMessage('تم تحميل البيانات بنجاح!', 'success');
+        showMessage(`تم تحميل ${employeesData.length} موظف بنجاح!`, 'success');
     } catch (error) {
-        showMessage('خطأ في تحميل البيانات', 'error');
+        console.error('خطأ تفصيلي في تحميل البيانات:', error);
+        showMessage(`خطأ في تحميل البيانات: ${error.message}`, 'error');
     } finally {
         showLoading(false);
     }
