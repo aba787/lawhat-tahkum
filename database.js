@@ -1,4 +1,3 @@
-
 const { Pool } = require('pg');
 
 // إعداد اتصال قاعدة البيانات
@@ -64,7 +63,7 @@ async function initializeDatabase() {
             'التخطيط الاستراتيجي',
             'إدارة المشاريع',
             'الجودة والتطوير',
-            
+
             // الأقسام التقنية المتخصصة
             'تكنولوجيا المعلومات',
             'تطوير التطبيقات',
@@ -113,7 +112,7 @@ async function initializeDatabase() {
 async function addEmployee(employeeData) {
     try {
         const { name, department, position, hireDate, education, age, salary, gender } = employeeData;
-        
+
         // الحصول على معرف القسم
         const deptResult = await pool.query('SELECT id FROM departments WHERE name = $1', [department]);
         const departmentId = deptResult.rows[0]?.id;
@@ -169,6 +168,29 @@ async function getAllEmployees(filters = {}) {
 
 // جلب إحصائيات الموظفين
 async function getEmployeeStats(filters = {}) {
+    if (useInMemory) {
+        const activeEmployees = inMemoryData.employees.filter(emp => emp.is_active);
+        const totalAge = activeEmployees.reduce((sum, emp) => sum + emp.age, 0);
+        const totalAbsence = activeEmployees.reduce((sum, emp) => sum + emp.absence_days, 0);
+
+        return {
+            active: {
+                total_active: activeEmployees.length,
+                avg_age: activeEmployees.length > 0 ? totalAge / activeEmployees.length : 0,
+                avg_absence: activeEmployees.length > 0 ? totalAbsence / activeEmployees.length : 0
+            },
+            turnover: {
+                left_employees: inMemoryData.employees.filter(emp => !emp.is_active).length,
+                total_employees: inMemoryData.employees.length
+            },
+            departments: inMemoryData.departments.map(dept => ({
+                name: dept.name,
+                count: activeEmployees.filter(emp => emp.department_id === dept.id).length
+            })),
+            education: []
+        };
+    }
+
     try {
         // إجمالي الموظفين النشطين
         const activeQuery = `
@@ -245,52 +267,52 @@ async function seedDatabase() {
             'المدير التنفيذي', 'نائب المدير التنفيذي', 'مدير عام', 'نائب المدير العام',
             'رئيس قسم', 'نائب رئيس القسم', 'مدير إدارة', 'مساعد مدير',
             'مشرف أول', 'مشرف', 'منسق عام', 'منسق إداري',
-            
+
             // المناصب المالية والمحاسبية
             'مدير مالي', 'محاسب قانوني', 'محاسب أول', 'محاسب', 'مساعد محاسب',
             'محلل مالي أول', 'محلل مالي', 'أخصائي مخاطر', 'مسؤول تأمين', 'مدقق داخلي',
-            
+
             // مناصب الموارد البشرية
             'مدير موارد بشرية', 'أخصائي موارد بشرية أول', 'أخصائي موارد بشرية',
             'أخصائي تدريب وتطوير', 'أخصائي رواتب ومزايا', 'منسق توظيف',
-            
+
             // المناصب التقنية المتخصصة
             'كبير مهندسي البرمجيات', 'مهندس برمجيات أول', 'مهندس برمجيات',
             'مطور Full Stack أول', 'مطور Full Stack', 'مطور Frontend أول', 'مطور Frontend',
             'مطور Backend أول', 'مطور Backend', 'مطور تطبيقات الجوال أول', 'مطور تطبيقات الجوال',
-            
+
             // مناصب الذكاء الاصطناعي وعلوم البيانات
             'كبير علماء البيانات', 'عالم بيانات أول', 'عالم بيانات', 'محلل بيانات أول', 'محلل بيانات',
             'مهندس ذكاء اصطناعي أول', 'مهندس ذكاء اصطناعي', 'مختص تعلم الآلة أول', 'مختص تعلم الآلة',
             'مهندس بيانات أول', 'مهندس بيانات', 'محلل ذكاء أعمال',
-            
+
             // مناصب الأنظمة السحابية والبنية التحتية
             'مهندس أنظمة سحابية أول', 'مهندس أنظمة سحابية', 'مهندس AWS معتمد', 'مهندس Azure معتمد',
             'مهندس DevOps أول', 'مهندس DevOps', 'مختص Kubernetes', 'مهندس Docker',
             'مدير بنية تحتية', 'مهندس شبكات أول', 'مهندس شبكات', 'مدير خوادم',
-            
+
             // مناصب الأمن السيبراني
             'مدير أمن المعلومات', 'محلل أمن سيبراني أول', 'محلل أمن سيبراني',
             'مختص أمن التطبيقات', 'مهندس أمن شبكات', 'محقق جرائم سيبرانية',
             'مختص اختبار الاختراق', 'مسؤول أمان أنظمة',
-            
+
             // مناصب قواعد البيانات
-            'مدير قواعد البيانات أول', 'مدير قواعد البيانات', 'مطور قواعد بيانات',
+            'مدير قواعد البيانات أول', 'مدير قواعد البيانات', 'مطور قواعد البيانات',
             'محلل قواعد البيانات', 'مهندس Big Data',
-            
+
             // مناصب التصميم وتجربة المستخدم
             'مدير تصميم UX/UI', 'مصمم UX/UI أول', 'مصمم UX/UI', 'مختص تجربة المستخدم',
             'مصمم جرافيك رقمي', 'مصمم واجهات تفاعلية',
-            
+
             // مناصب ضمان الجودة والاختبار
             'مدير ضمان الجودة', 'مهندس QA أول', 'مهندس QA', 'مختص اختبار أتمتة',
             'محلل اختبارات', 'مهندس اختبار أداء',
-            
+
             // مناصب التقنيات الناشئة
             'مختص بلوك تشين أول', 'مهندس بلوك تشين', 'مطور ألعاب أول', 'مطور ألعاب',
             'مهندس واقع افتراضي', 'مختص واقع معزز', 'مهندس إنترنت الأشياء أول',
             'مطور إنترنت الأشياء', 'مهندس روبوتيك', 'مختص أتمتة ذكية',
-            
+
             // مناصب الدعم والصيانة
             'فني دعم تقني أول', 'فني دعم تقني', 'مختص صيانة أنظمة',
             'مدير مركز البيانات', 'فني شبكات'
@@ -302,41 +324,41 @@ async function seedDatabase() {
             'ماجستير علوم البيانات', 'ماجستير أمن سيبراني', 'ماجستير إدارة أعمال MBA',
             'بكالوريوس علوم حاسب', 'بكالوريوس هندسة برمجيات', 'بكالوريوس أمن سيبراني',
             'بكالوريوس نظم معلومات', 'بكالوريوس هندسة حاسب', 'بكالوريوس رياضيات تطبيقية',
-            
+
             // الشهادات السحابية المعتمدة
             'AWS Solutions Architect Professional', 'AWS Solutions Architect Associate',
             'AWS Developer Associate', 'AWS SysOps Administrator', 'AWS DevOps Engineer',
             'Microsoft Azure Architect Expert', 'Azure Administrator Associate', 'Azure Developer Associate',
             'Google Cloud Professional Architect', 'Google Cloud Data Engineer',
-            
+
             // شهادات أمن المعلومات
             'CISSP - أمن نظم المعلومات', 'CISM - إدارة أمن المعلومات',
             'CEH - هاكر أخلاقي معتمد', 'OSCP - اختبار الاختراق',
             'CompTIA Security+', 'CISA - مراجع نظم المعلومات',
-            
+
             // شهادات الشبكات والبنية التحتية
             'CCNP - سيسكو متخصص', 'CCNA - سيسكو مشارك',
             'MCSE - مهندس نظم مايكروسوفت', 'VMware VCP',
             'Kubernetes Administrator CKA', 'Docker Certified Associate',
-            
+
             // شهادات إدارة المشاريع
             'PMP - إدارة المشاريع المعتمدة', 'Scrum Master معتمد', 'Agile Coach',
             'ITIL Foundation', 'Prince2 Foundation',
-            
+
             // شهادات علوم البيانات والذكاء الاصطناعي
             'Google Data Analytics Certificate', 'IBM Data Science Professional',
             'Microsoft AI Engineer Associate', 'TensorFlow Developer Certificate',
-            
+
             // شهادات البرمجة والتطوير
             'Oracle Java Certified Professional', 'Microsoft C# Developer',
             'Red Hat Certified Engineer', 'MongoDB Developer',
             'Salesforce Developer', 'ServiceNow Developer',
-            
+
             // التعليم التقني المكثف
             'Coding Bootcamp - Full Stack', 'Data Science Bootcamp',
             'Cybersecurity Bootcamp', 'UX/UI Design Bootcamp',
             'DevOps Engineering Bootcamp', 'AI/ML Intensive Course',
-            
+
             // الدبلومات المتخصصة
             'دبلوم عالي في أمن المعلومات', 'دبلوم عالي في علوم البيانات',
             'دبلوم تقني في الشبكات', 'دبلوم البرمجة والتطوير',
@@ -348,16 +370,16 @@ async function seedDatabase() {
             const hireDate = new Date(2020 + Math.floor(Math.random() * 4), 
                                     Math.floor(Math.random() * 12), 
                                     Math.floor(Math.random() * 28));
-            
+
             // تنويع الراتب حسب المنصب والمؤهل
             const position = positions[Math.floor(Math.random() * positions.length)];
             const education = educationLevels[Math.floor(Math.random() * educationLevels.length)];
             let baseSalary = 4000;
-            
+
             if (position.includes('مدير')) baseSalary = 12000;
             else if (position.includes('رئيس') || position.includes('أول')) baseSalary = 8000;
             else if (position.includes('أخصائي')) baseSalary = 6000;
-            
+
             if (education === 'دكتوراه') baseSalary += 2000;
             else if (education === 'ماجستير') baseSalary += 1000;
 
