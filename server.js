@@ -106,6 +106,60 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
             });
         }
 
+        // التحقق من نوع الملف حسب النوع المحدد
+        const allowedMimeTypes = {
+            'photo': [
+                'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'
+            ],
+            'resume': [
+                'application/pdf', 
+                'application/msword', 
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'text/plain',
+                'application/rtf',
+                'text/rtf'
+            ],
+            'contract': [
+                'application/pdf', 
+                'application/msword', 
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'text/plain',
+                'application/rtf',
+                'text/rtf'
+            ],
+            'certificate': [
+                'application/pdf', 
+                'image/jpeg', 
+                'image/jpg', 
+                'image/png', 
+                'image/gif',
+                'image/webp',
+                'application/msword', 
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+            ],
+            'document': [
+                'application/pdf', 
+                'application/msword', 
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                'text/plain',
+                'application/rtf',
+                'text/rtf',
+                'application/vnd.ms-excel',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                'application/vnd.ms-powerpoint',
+                'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+            ]
+        };
+
+        if (allowedMimeTypes[fileType] && !allowedMimeTypes[fileType].includes(req.file.mimetype)) {
+            console.log('نوع الملف المرفوع:', req.file.mimetype);
+            console.log('الأنواع المسموحة للنوع', fileType, ':', allowedMimeTypes[fileType]);
+            return res.status(400).json({
+                success: false,
+                error: `نوع الملف "${req.file.mimetype}" غير مسموح لهذا النوع من الملفات`
+            });
+        }
+
         // التحقق من حجم الملف (5MB كحد أقصى)
         const maxFileSize = 5 * 1024 * 1024; // 5MB
         if (req.file.size > maxFileSize) {
@@ -121,13 +175,6 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         try {
             switch (fileType) {
                 case 'photo':
-                    // التحقق من أن الملف صورة
-                    if (!req.file.mimetype.startsWith('image/')) {
-                        return res.status(400).json({
-                            success: false,
-                            error: 'يجب أن يكون الملف صورة'
-                        });
-                    }
                     uploadResult = await storageHelpers.uploadEmployeePhoto(employeeId, req.file.buffer);
                     break;
                 case 'resume':

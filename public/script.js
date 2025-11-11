@@ -1277,15 +1277,53 @@ async function uploadFile() {
 
     // التحقق من نوع الملف
     const allowedTypes = {
-        'photo': ['image/jpeg', 'image/png', 'image/gif'],
-        'resume': ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-        'contract': ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
-        'certificate': ['application/pdf', 'image/jpeg', 'image/png'],
-        'document': ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+        'photo': [
+            'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'
+        ],
+        'resume': [
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
+            'application/rtf',
+            'text/rtf'
+        ],
+        'contract': [
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
+            'application/rtf',
+            'text/rtf'
+        ],
+        'certificate': [
+            'application/pdf', 
+            'image/jpeg', 
+            'image/jpg', 
+            'image/png', 
+            'image/gif',
+            'image/webp',
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ],
+        'document': [
+            'application/pdf', 
+            'application/msword', 
+            'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'text/plain',
+            'application/rtf',
+            'text/rtf',
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.ms-powerpoint',
+            'application/vnd.openxmlformats-officedocument.presentationml.presentation'
+        ]
     };
 
     if (allowedTypes[fileType] && !allowedTypes[fileType].includes(file.type)) {
-        showError(`نوع الملف غير مسموح. الأنواع المسموحة: ${allowedTypes[fileType].join(', ')}`);
+        console.log('نوع الملف المحدد:', file.type);
+        console.log('الأنواع المسموحة:', allowedTypes[fileType]);
+        showError(`نوع الملف "${file.type}" غير مسموح لهذا النوع من الملفات. الأنواع المسموحة: ${allowedTypes[fileType].join(', ')}`);
         return;
     }
 
