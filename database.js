@@ -110,23 +110,53 @@ async function initializeDatabase() {
 
 // إضافة موظف جديد
 async function addEmployee(employeeData) {
+    const client = await pool.connect();
+    
     try {
+        await client.query('BEGIN');
+        
         const { name, department, position, hireDate, education, age, salary, gender } = employeeData;
 
-        // الحصول على معرف القسم
-        const deptResult = await pool.query('SELECT id FROM departments WHERE name = $1', [department]);
-        const departmentId = deptResult.rows[0]?.id;
+        // التحقق من وجود القسم
+        const deptResult = await client.query('SELECT id FROM departments WHERE name = $1', [department]);
+        
+        if (deptResult.rows.length === 0) {
+            throw new Error(`القسم "${department}" غير موجود`);
+        }
+        
+        const departmentId = deptResult.rows[0].id;
 
-        const result = await pool.query(`
+        // التحقق من عدم وجود موظف بنفس الاسم في نفس القسم
+        const duplicateCheck = await client.query(
+            'SELECT id FROM employees WHERE name = $1 AND department_id = $2 AND is_active = true', 
+            [name, departmentId]
+        );
+        
+        if (duplicateCheck.rows.length > 0) {
+            throw new Error('يوجد موظف بنفس الاسم في هذا القسم');
+        }
+
+        // إضافة الموظف
+        const result = await client.query(`
             INSERT INTO employees (name, department_id, position, hire_date, education, age, salary, gender)
             VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
             RETURNING *
-        `, [name, departmentId, position, hireDate, education, age, salary, gender]);
+        `, [name, departmentId, position || '', hireDate, education || '', age, salary, gender || '']);
 
+        await client.query('COMMIT');
+        
+        if (result.rows.length === 0) {
+            throw new Error('فشل في إضافة الموظف');
+        }
+        
         return result.rows[0];
+        
     } catch (error) {
-        console.error('خطأ في إضافة الموظف:', error);
+        await client.query('ROLLBACK');
+        console.error('خطأ في إضافة الموظف:', error.message);
         throw error;
+    } finally {
+        client.release();
     }
 }
 

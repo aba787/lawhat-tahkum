@@ -81,50 +81,130 @@ app.get('/', (req, res) => {
 // Upload file endpoint
 app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
+        // التحقق من وجود الملف
         if (!req.file) {
-            return res.status(400).json({ error: 'لم يتم العثور على ملف للرفع' });
+            return res.status(400).json({ 
+                success: false,
+                error: 'لم يتم العثور على ملف للرفع' 
+            });
         }
 
         const { employeeId, fileType } = req.body;
 
+        // التحقق من صحة البيانات المطلوبة
         if (!employeeId || !fileType) {
-            return res.status(400).json({ error: 'رقم الموظف ونوع الملف مطلوبان' });
+            return res.status(400).json({ 
+                success: false,
+                error: 'رقم الموظف ونوع الملف مطلوبان' 
+            });
+        }
+
+        // التحقق من صحة معرف الموظف
+        if (isNaN(employeeId) || employeeId <= 0) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'معرف الموظف غير صحيح' 
+            });
+        }
+
+        // التحقق من وجود الموظف في قاعدة البيانات
+        const employeeCheck = await pool.query('SELECT id FROM employees WHERE id = $1', [employeeId]);
+        if (employeeCheck.rows.length === 0) {
+            return res.status(404).json({ 
+                success: false,
+                error: 'الموظف غير موجود' 
+            });
+        }
+
+        // التحقق من نوع الملف المسموح
+        const allowedFileTypes = ['photo', 'resume', 'document', 'certificate', 'contract'];
+        if (!allowedFileTypes.includes(fileType)) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'نوع الملف غير مسموح' 
+            });
+        }
+
+        // التحقق من حجم الملف (5MB كحد أقصى)
+        const maxFileSize = 5 * 1024 * 1024; // 5MB
+        if (req.file.size > maxFileSize) {
+            return res.status(400).json({ 
+                success: false,
+                error: 'حجم الملف كبير جداً. الحد الأقصى 5 ميجابايت' 
+            });
         }
 
         let uploadResult;
 
-        // رفع الملف حسب نوعه
-        switch (fileType) {
-            case 'photo':
-                uploadResult = await storageHelpers.uploadEmployeePhoto(employeeId, req.file.buffer);
-                break;
-            case 'resume':
-                uploadResult = await storageHelpers.uploadResume(employeeId, {
-                    name: req.file.originalname,
-                    buffer: req.file.buffer
-                });
-                break;
-            default:
-                uploadResult = await storageHelpers.uploadDocument(employeeId, {
-                    name: req.file.originalname,
-                    buffer: req.file.buffer
-                }, fileType);
-                break;
+        // رفع الملف حسب نوعه مع معالجة الأخطاء
+        try {
+            switch (fileType) {
+                case 'photo':
+                    // التحقق من أن الملف صورة
+                    if (!req.file.mimetype.startsWith('image/')) {
+                        return res.status(400).json({ 
+                            success: false,
+                            error: 'يجب أن يكون الملف صورة' 
+                        });
+                    }
+                    uploadResult = await storageHelpers.uploadEmployeePhoto(employeeId, req.file.buffer);
+                    break;
+                case 'resume':
+                    uploadResult = await storageHelpers.uploadResume(employeeId, {
+                        name: req.file.originalname || 'resume',
+                        buffer: req.file.buffer
+                    });
+                    break;
+                default:
+                    uploadResult = await storageHelpers.uploadDocument(employeeId, {
+                        name: req.file.originalname || 'document',
+                        buffer: req.file.buffer
+                    }, fileType);
+                    break;
+            }
+        } catch (uploadError) {
+            console.error('خطأ في رفع الملف إلى Firebase:', uploadError);
+            return res.status(500).json({
+                success: false,
+                error: 'فشل في رفع الملف',
+                details: 'تعذر الاتصال بخدمة التخزين السحابي'
+            });
         }
 
+        // التأكد من نجاح الرفع
+        if (!uploadResult) {
+            return res.status(500).json({
+                success: false,
+                error: 'فشل في رفع الملف'
+            });
+        }
+
+        const fileUrl = typeof uploadResult === 'string' ? uploadResult : uploadResult.url;
+        
+        if (!fileUrl) {
+            return res.status(500).json({
+                success: false,
+                error: 'لم يتم الحصول على رابط الملف'
+            });
+        }
+
+        // إرجاع النتيجة الناجحة
         res.json({
             success: true,
-            fileUrl: typeof uploadResult === 'string' ? uploadResult : uploadResult.url,
-            fileName: req.file.originalname,
+            fileUrl: fileUrl,
+            fileName: req.file.originalname || 'file',
             fileType,
-            employeeId
+            employeeId: parseInt(employeeId),
+            fileSize: req.file.size,
+            uploadDate: new Date().toISOString()
         });
 
     } catch (error) {
-        console.error('خطأ في رفع الملف:', error);
+        console.error('خطأ عام في رفع الملف:', error);
         res.status(500).json({
-            error: 'خطأ في رفع الملف',
-            details: error.message
+            success: false,
+            error: 'خطأ داخلي في الخادم',
+            details: process.env.NODE_ENV === 'development' ? error.message : 'حدث خطأ غير متوقع'
         });
     }
 });
@@ -199,20 +279,115 @@ app.post('/api/employees', async (req, res) => {
     try {
         const employeeData = req.body;
 
-        // Basic validation
-        if (!employeeData.name || !employeeData.department) {
+        // التحقق الشامل من صحة البيانات
+        const validationErrors = [];
+
+        // التحقق من الحقول المطلوبة
+        if (!employeeData.name || employeeData.name.trim() === '') {
+            validationErrors.push('اسم الموظف مطلوب');
+        }
+        if (!employeeData.department || employeeData.department.trim() === '') {
+            validationErrors.push('القسم مطلوب');
+        }
+        if (!employeeData.hireDate) {
+            validationErrors.push('تاريخ التعيين مطلوب');
+        }
+
+        // التحقق من صحة الأسماء (لا تحتوي على أرقام أو رموز غريبة)
+        if (employeeData.name && !/^[a-zA-Zا-ي\s]+$/.test(employeeData.name.trim())) {
+            validationErrors.push('الاسم يجب أن يحتوي على حروف فقط');
+        }
+
+        // التحقق من صحة العمر
+        if (employeeData.age) {
+            const age = parseInt(employeeData.age);
+            if (isNaN(age) || age < 18 || age > 65) {
+                validationErrors.push('العمر يجب أن يكون بين 18 و 65 سنة');
+            }
+        }
+
+        // التحقق من صحة الراتب
+        if (employeeData.salary) {
+            const salary = parseFloat(employeeData.salary);
+            if (isNaN(salary) || salary < 0) {
+                validationErrors.push('الراتب يجب أن يكون رقماً موجباً');
+            }
+        }
+
+        // التحقق من صحة تاريخ التعيين
+        if (employeeData.hireDate) {
+            const hireDate = new Date(employeeData.hireDate);
+            const today = new Date();
+            if (isNaN(hireDate.getTime()) || hireDate > today) {
+                validationErrors.push('تاريخ التعيين غير صحيح');
+            }
+        }
+
+        // التحقق من صحة الجنس
+        if (employeeData.gender && !['ذكر', 'أنثى'].includes(employeeData.gender)) {
+            validationErrors.push('الجنس يجب أن يكون ذكر أو أنثى');
+        }
+
+        // إرجاع أخطاء التحقق إن وجدت
+        if (validationErrors.length > 0) {
             return res.status(400).json({
-                error: 'اسم الموظف والقسم مطلوبان'
+                success: false,
+                error: 'بيانات غير صحيحة',
+                details: validationErrors
             });
         }
 
-        const newEmployee = await addEmployee(employeeData);
-        res.status(201).json(newEmployee);
+        // تنظيف البيانات
+        const cleanEmployeeData = {
+            name: employeeData.name.trim(),
+            department: employeeData.department.trim(),
+            position: employeeData.position ? employeeData.position.trim() : '',
+            hireDate: employeeData.hireDate,
+            education: employeeData.education ? employeeData.education.trim() : '',
+            age: employeeData.age ? parseInt(employeeData.age) : null,
+            salary: employeeData.salary ? parseFloat(employeeData.salary) : null,
+            gender: employeeData.gender || null
+        };
+
+        const newEmployee = await addEmployee(cleanEmployeeData);
+        
+        if (!newEmployee) {
+            return res.status(500).json({
+                success: false,
+                error: 'فشل في إضافة الموظف'
+            });
+        }
+
+        res.status(201).json({
+            success: true,
+            employee: newEmployee,
+            message: 'تم إضافة الموظف بنجاح'
+        });
+
     } catch (error) {
-        console.error('Error adding employee:', error);
+        console.error('خطأ في إضافة الموظف:', error);
+        
+        // معالجة أخطاء قاعدة البيانات المحددة
+        if (error.code === '23505') { // duplicate key error
+            return res.status(400).json({
+                success: false,
+                error: 'الموظف موجود مسبقاً',
+                details: 'يوجد موظف بنفس البيانات'
+            });
+        }
+        
+        if (error.code === '23503') { // foreign key constraint error
+            return res.status(400).json({
+                success: false,
+                error: 'القسم المحدد غير موجود',
+                details: 'يرجى اختيار قسم صحيح'
+            });
+        }
+
         res.status(500).json({
-            error: 'خطأ في إضافة الموظف',
-            details: error.message
+            success: false,
+            error: 'خطأ داخلي في الخادم',
+            details: process.env.NODE_ENV === 'development' ? error.message : 'حدث خطأ غير متوقع'
         });
     }
 });
