@@ -1,3 +1,4 @@
+
 // Global variables
 let employeesData = [];
 let filteredData = [];
@@ -10,11 +11,16 @@ async function fetchEmployees(filters = {}) {
         if (filters.departmentId) params.append('departmentId', filters.departmentId);
         if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
         if (filters.dateTo) params.append('dateTo', filters.dateTo);
+        if (filters.departmentName) params.append('departmentName', filters.departmentName);
 
         const response = await fetch(`/api/employees?${params}`);
+        if (!response.ok) {
+            throw new Error(`خطأ في الخادم: ${response.status}`);
+        }
         return await response.json();
     } catch (error) {
         console.error('خطأ في جلب الموظفين:', error);
+        showError('تعذر جلب بيانات الموظفين: ' + error.message);
         return [];
     }
 }
@@ -22,9 +28,13 @@ async function fetchEmployees(filters = {}) {
 async function fetchStats() {
     try {
         const response = await fetch('/api/stats');
+        if (!response.ok) {
+            throw new Error(`خطأ في الخادم: ${response.status}`);
+        }
         return await response.json();
     } catch (error) {
         console.error('خطأ في جلب الإحصائيات:', error);
+        showError('تعذر جلب الإحصائيات: ' + error.message);
         return null;
     }
 }
@@ -38,6 +48,12 @@ async function addNewEmployee(employeeData) {
             },
             body: JSON.stringify(employeeData),
         });
+        
+        if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error || `خطأ في الخادم: ${response.status}`);
+        }
+        
         return await response.json();
     } catch (error) {
         console.error('خطأ في إضافة الموظف:', error);
@@ -48,6 +64,9 @@ async function addNewEmployee(employeeData) {
 async function seedDatabase() {
     try {
         const response = await fetch('/api/seed', { method: 'POST' });
+        if (!response.ok) {
+            throw new Error(`خطأ في الخادم: ${response.status}`);
+        }
         return await response.json();
     } catch (error) {
         console.error('خطأ في إدراج البيانات التجريبية:', error);
@@ -59,22 +78,19 @@ async function seedDatabase() {
 async function checkDatabaseHealth() {
     try {
         const response = await fetch('/api/health');
-        const data = await response.json();
-
-        if (response.ok && data.status === 'healthy') {
-            return true;
-        } else {
-            showError('قاعدة البيانات غير متاحة حالياً');
-            return false;
+        if (!response.ok) {
+            throw new Error('الخادم غير متاح');
         }
+        
+        const data = await response.json();
+        return data.status === 'healthy' && data.database === 'connected';
     } catch (error) {
-        showError('تعذر الاتصال بالخادم: ' + error.message);
+        console.error('خطأ في فحص صحة قاعدة البيانات:', error);
         return false;
     }
 }
 
 function showError(message) {
-    // إظهار رسالة خطأ للمستخدم
     const errorDiv = document.getElementById('error-message') || createErrorElement();
     errorDiv.textContent = message;
     errorDiv.style.display = 'block';
@@ -98,9 +114,42 @@ function createErrorElement() {
         z-index: 1000;
         display: none;
         font-family: Cairo, sans-serif;
+        max-width: 400px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
     `;
     document.body.appendChild(errorDiv);
     return errorDiv;
+}
+
+function showSuccess(message) {
+    const successDiv = document.getElementById('success-message') || createSuccessElement();
+    successDiv.textContent = message;
+    successDiv.style.display = 'block';
+
+    setTimeout(() => {
+        successDiv.style.display = 'none';
+    }, 3000);
+}
+
+function createSuccessElement() {
+    const successDiv = document.createElement('div');
+    successDiv.id = 'success-message';
+    successDiv.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #48bb78;
+        color: white;
+        padding: 15px;
+        border-radius: 5px;
+        z-index: 1000;
+        display: none;
+        font-family: Cairo, sans-serif;
+        max-width: 400px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    `;
+    document.body.appendChild(successDiv);
+    return successDiv;
 }
 
 // Initialize dashboard
@@ -123,6 +172,17 @@ function initializeDashboard() {
     addEmployeeBtn.innerHTML = '<i class="fas fa-plus"></i> إضافة موظف';
     addEmployeeBtn.addEventListener('click', showAddEmployeeModal);
     document.querySelector('.header-controls').appendChild(addEmployeeBtn);
+
+    // التحقق التلقائي من صحة قاعدة البيانات عند التحميل
+    setTimeout(() => {
+        checkDatabaseHealth().then(isHealthy => {
+            if (isHealthy) {
+                console.log('✅ قاعدة البيانات متاحة');
+            } else {
+                showError('❌ قاعدة البيانات غير متاحة. يرجى التحقق من اتصال قاعدة البيانات');
+            }
+        });
+    }, 1000);
 }
 
 // Load data function
@@ -131,32 +191,35 @@ async function loadData() {
 
     try {
         // التحقق من حالة قاعدة البيانات أولاً
-        const healthResponse = await fetch('/api/health');
-        const healthData = await healthResponse.json();
-        
-        if (!healthResponse.ok || healthData.database === 'غير متصل') {
+        const isHealthy = await checkDatabaseHealth();
+        if (!isHealthy) {
             throw new Error('قاعدة البيانات غير متاحة. يرجى إنشاء PostgreSQL Database أولاً');
         }
 
-        // إدراج البيانات التجريبية إذا كانت قاعدة البيانات فارغة
-        await seedDatabase();
+        // محاولة إدراج البيانات التجريبية إذا كانت قاعدة البيانات فارغة
+        try {
+            await seedDatabase();
+            console.log('✅ تم محاولة إدراج البيانات التجريبية');
+        } catch (seedError) {
+            console.log('ℹ️ البيانات موجودة بالفعل أو حدث خطأ في الإدراج:', seedError.message);
+        }
 
         // جلب البيانات من قاعدة البيانات
         employeesData = await fetchEmployees();
         filteredData = [...employeesData];
 
         if (employeesData.length === 0) {
-            showMessage('لا توجد بيانات في قاعدة البيانات', 'error');
+            showError('لا توجد بيانات في قاعدة البيانات. تأكد من إدراج البيانات التجريبية أولاً');
             return;
         }
 
         populateDepartmentFilter();
-        updateDashboard();
+        await updateDashboard();
 
-        showMessage(`تم تحميل ${employeesData.length} موظف بنجاح!`, 'success');
+        showSuccess(`تم تحميل ${employeesData.length} موظف بنجاح!`);
     } catch (error) {
         console.error('خطأ تفصيلي في تحميل البيانات:', error);
-        showMessage(`خطأ في تحميل البيانات: ${error.message}`, 'error');
+        showError(`خطأ في تحميل البيانات: ${error.message}`);
     } finally {
         showLoading(false);
     }
@@ -164,33 +227,16 @@ async function loadData() {
 
 // Show/hide loading spinner
 function showLoading(show) {
-    document.getElementById('loadingSpinner').style.display = show ? 'flex' : 'none';
-}
-
-// Show message function
-function showMessage(message, type) {
-    const messageDiv = document.createElement('div');
-    messageDiv.className = `message ${type}`;
-    messageDiv.textContent = message;
-    messageDiv.style.cssText = `
-        position: fixed;
-        top: 20px;
-        right: 20px;
-        padding: 15px 20px;
-        border-radius: 8px;
-        background: ${type === 'success' ? '#48bb78' : '#f56565'};
-        color: white;
-        z-index: 1000;
-        font-family: Cairo, sans-serif;
-    `;
-
-    document.body.appendChild(messageDiv);
-    setTimeout(() => messageDiv.remove(), 3000);
+    const spinner = document.getElementById('loadingSpinner');
+    if (spinner) {
+        spinner.style.display = show ? 'flex' : 'none';
+    }
 }
 
 // Populate department filter
 function populateDepartmentFilter() {
     const departmentSelect = document.getElementById('departmentFilter');
+    if (!departmentSelect) return;
 
     // قائمة الأقسام المحددة مسبقاً
     const predefinedDepartments = [
@@ -231,17 +277,16 @@ async function applyFilters() {
         if (dateFrom) filters.dateFrom = dateFrom;
         if (dateTo) filters.dateTo = dateTo;
         if (department) {
-            // البحث عن معرف القسم (هذا مبسط للتوضيح)
             filters.departmentName = department;
         }
 
         employeesData = await fetchEmployees(filters);
         filteredData = [...employeesData];
 
-        updateDashboard();
-        showMessage('تم تطبيق الفلاتر بنجاح!', 'success');
+        await updateDashboard();
+        showSuccess('تم تطبيق الفلاتر بنجاح!');
     } catch (error) {
-        showMessage('خطأ في تطبيق الفلاتر', 'error');
+        showError('خطأ في تطبيق الفلاتر: ' + error.message);
     } finally {
         showLoading(false);
     }
@@ -259,29 +304,37 @@ async function updateDashboard() {
 async function updateKPIs() {
     try {
         const stats = await fetchStats();
-        if (!stats) return;
-
         const activeEmployees = filteredData.filter(emp => emp.is_active);
         const totalEmployees = activeEmployees.length;
 
+        if (totalEmployees === 0) {
+            document.getElementById('totalEmployees').textContent = '0';
+            document.getElementById('turnoverRate').textContent = '0%';
+            document.getElementById('absenceRate').textContent = '0%';
+            document.getElementById('avgExperience').textContent = '0';
+            return;
+        }
+
         // حساب معدل دوران الموظفين
-        const turnoverRate = stats.turnover.total_employees > 0 
-            ? ((stats.turnover.left_employees / stats.turnover.total_employees) * 100).toFixed(1)
-            : 0;
+        let turnoverRate = 0;
+        if (stats && stats.turnover && stats.turnover.total_employees > 0) {
+            turnoverRate = ((stats.turnover.left_employees / stats.turnover.total_employees) * 100).toFixed(1);
+        }
 
         // حساب نسبة الغياب
-        const avgAbsence = stats.active.avg_absence 
-            ? (parseFloat(stats.active.avg_absence) / 250 * 100).toFixed(1)
-            : 0;
+        let avgAbsence = 0;
+        if (stats && stats.active && stats.active.avg_absence) {
+            avgAbsence = (parseFloat(stats.active.avg_absence) / 250 * 100).toFixed(1);
+        }
 
         // حساب متوسط سنوات الخبرة
-        const avgExperience = totalEmployees > 0 ? (activeEmployees.reduce((sum, emp) => {
+        const avgExperience = (activeEmployees.reduce((sum, emp) => {
             const hireDate = new Date(emp.hire_date);
             const years = (new Date() - hireDate) / (1000 * 60 * 60 * 24 * 365);
             return sum + years;
-        }, 0) / totalEmployees).toFixed(1) : 0;
+        }, 0) / totalEmployees).toFixed(1);
 
-        document.getElementById('totalEmployees').textContent = totalEmployees;
+        document.getElementById('totalEmployees').textContent = totalEmployees.toLocaleString();
         document.getElementById('turnoverRate').textContent = turnoverRate + '%';
         document.getElementById('absenceRate').textContent = avgAbsence + '%';
         document.getElementById('avgExperience').textContent = avgExperience;
@@ -292,24 +345,30 @@ async function updateKPIs() {
 
 // Update charts
 function updateCharts() {
-    updateDepartmentChart();
-    updateEducationChart();
-    updateHiringTrendChart();
-    updateAgeDistributionChart();
-    updateGenderChart();
+    try {
+        updateDepartmentChart();
+        updateEducationChart();
+        updateHiringTrendChart();
+        updateAgeDistributionChart();
+        updateGenderChart();
+    } catch (error) {
+        console.error('خطأ في تحديث الرسوم البيانية:', error);
+    }
 }
 
 // Department distribution chart
 function updateDepartmentChart() {
-    const ctx = document.getElementById('departmentChart').getContext('2d');
+    const ctx = document.getElementById('departmentChart');
+    if (!ctx) return;
 
     if (charts.department) {
         charts.department.destroy();
     }
 
     const activeEmployees = filteredData.filter(emp => emp.is_active);
-    const deptData = {};
+    if (activeEmployees.length === 0) return;
 
+    const deptData = {};
     activeEmployees.forEach(emp => {
         const dept = emp.department_name || emp.department;
         if (dept) {
@@ -317,7 +376,7 @@ function updateDepartmentChart() {
         }
     });
 
-    charts.department = new Chart(ctx, {
+    charts.department = new Chart(ctx.getContext('2d'), {
         type: 'pie',
         data: {
             labels: Object.keys(deptData),
@@ -350,22 +409,24 @@ function updateDepartmentChart() {
 
 // Education distribution chart
 function updateEducationChart() {
-    const ctx = document.getElementById('educationChart').getContext('2d');
+    const ctx = document.getElementById('educationChart');
+    if (!ctx) return;
 
     if (charts.education) {
         charts.education.destroy();
     }
 
     const activeEmployees = filteredData.filter(emp => emp.is_active);
-    const eduData = {};
+    if (activeEmployees.length === 0) return;
 
+    const eduData = {};
     activeEmployees.forEach(emp => {
         if (emp.education) {
             eduData[emp.education] = (eduData[emp.education] || 0) + 1;
         }
     });
 
-    charts.education = new Chart(ctx, {
+    charts.education = new Chart(ctx.getContext('2d'), {
         type: 'doughnut',
         data: {
             labels: Object.keys(eduData),
@@ -397,14 +458,14 @@ function updateEducationChart() {
 
 // Hiring trend chart
 function updateHiringTrendChart() {
-    const ctx = document.getElementById('hiringTrendChart').getContext('2d');
+    const ctx = document.getElementById('hiringTrendChart');
+    if (!ctx) return;
 
     if (charts.hiringTrend) {
         charts.hiringTrend.destroy();
     }
 
     const monthlyHiring = {};
-
     filteredData.forEach(emp => {
         const date = new Date(emp.hire_date);
         const month = date.toLocaleDateString('ar-SA', { year: 'numeric', month: 'long' });
@@ -412,8 +473,9 @@ function updateHiringTrendChart() {
     });
 
     const sortedMonths = Object.keys(monthlyHiring).sort((a, b) => new Date(a) - new Date(b));
+    if (sortedMonths.length === 0) return;
 
-    charts.hiringTrend = new Chart(ctx, {
+    charts.hiringTrend = new Chart(ctx.getContext('2d'), {
         type: 'line',
         data: {
             labels: sortedMonths.slice(-12),
@@ -461,13 +523,16 @@ function updateHiringTrendChart() {
 
 // Age distribution chart
 function updateAgeDistributionChart() {
-    const ctx = document.getElementById('ageDistributionChart').getContext('2d');
+    const ctx = document.getElementById('ageDistributionChart');
+    if (!ctx) return;
 
     if (charts.ageDistribution) {
         charts.ageDistribution.destroy();
     }
 
     const activeEmployees = filteredData.filter(emp => emp.is_active);
+    if (activeEmployees.length === 0) return;
+
     const ageGroups = {
         '20-29': 0,
         '30-39': 0,
@@ -483,7 +548,7 @@ function updateAgeDistributionChart() {
         else if (age >= 50) ageGroups['50+']++;
     });
 
-    charts.ageDistribution = new Chart(ctx, {
+    charts.ageDistribution = new Chart(ctx.getContext('2d'), {
         type: 'bar',
         data: {
             labels: Object.keys(ageGroups),
@@ -535,6 +600,11 @@ function updateDepartmentCards() {
     grid.innerHTML = '';
 
     const activeEmployees = filteredData.filter(emp => emp.is_active);
+    if (activeEmployees.length === 0) {
+        grid.innerHTML = '<div class="no-data">لا توجد بيانات لعرضها</div>';
+        return;
+    }
+
     const deptStats = {};
 
     // حساب الإحصائيات لكل قسم
@@ -544,11 +614,7 @@ function updateDepartmentCards() {
             deptStats[dept] = {
                 count: 0,
                 totalSalary: 0,
-                avgAge: 0,
                 totalAge: 0,
-                maleCount: 0,
-                femaleCount: 0,
-                avgAbsence: 0,
                 totalAbsence: 0
             };
         }
@@ -557,18 +623,15 @@ function updateDepartmentCards() {
         deptStats[dept].totalSalary += emp.salary || 0;
         deptStats[dept].totalAge += emp.age || 0;
         deptStats[dept].totalAbsence += emp.absence_days || 0;
-
-        if (emp.gender === 'ذكر') deptStats[dept].maleCount++;
-        else if (emp.gender === 'أنثى') deptStats[dept].femaleCount++;
     });
 
     // حساب المتوسطات وإنشاء البطاقات
     Object.keys(deptStats).forEach(dept => {
         const stats = deptStats[dept];
         if (stats.count > 0) {
-            stats.avgSalary = Math.round(stats.totalSalary / stats.count);
-            stats.avgAge = Math.round(stats.totalAge / stats.count);
-            stats.avgAbsence = Math.round(stats.totalAbsence / stats.count);
+            const avgSalary = Math.round(stats.totalSalary / stats.count);
+            const avgAge = Math.round(stats.totalAge / stats.count);
+            const avgAbsence = Math.round(stats.totalAbsence / stats.count);
 
             const card = document.createElement('div');
             card.className = 'department-card';
@@ -580,15 +643,15 @@ function updateDepartmentCards() {
                         <div class="department-stat-label">عدد الموظفين</div>
                     </div>
                     <div class="department-stat">
-                        <div class="department-stat-value">${stats.avgSalary.toLocaleString()}</div>
+                        <div class="department-stat-value">${avgSalary.toLocaleString()}</div>
                         <div class="department-stat-label">متوسط الراتب</div>
                     </div>
                     <div class="department-stat">
-                        <div class="department-stat-value">${stats.avgAge}</div>
+                        <div class="department-stat-value">${avgAge}</div>
                         <div class="department-stat-label">متوسط العمر</div>
                     </div>
                     <div class="department-stat">
-                        <div class="department-stat-value">${stats.avgAbsence}</div>
+                        <div class="department-stat-value">${avgAbsence}</div>
                         <div class="department-stat-label">متوسط أيام الغياب</div>
                     </div>
                 </div>
@@ -600,22 +663,24 @@ function updateDepartmentCards() {
 
 // Gender distribution chart
 function updateGenderChart() {
-    const ctx = document.getElementById('genderChart').getContext('2d');
+    const ctx = document.getElementById('genderChart');
+    if (!ctx) return;
 
     if (charts.gender) {
         charts.gender.destroy();
     }
 
     const activeEmployees = filteredData.filter(emp => emp.is_active);
-    const genderData = {};
+    if (activeEmployees.length === 0) return;
 
+    const genderData = {};
     activeEmployees.forEach(emp => {
         if (emp.gender) {
             genderData[emp.gender] = (genderData[emp.gender] || 0) + 1;
         }
     });
 
-    charts.gender = new Chart(ctx, {
+    charts.gender = new Chart(ctx.getContext('2d'), {
         type: 'pie',
         data: {
             labels: Object.keys(genderData),
@@ -646,9 +711,16 @@ function updateGenderChart() {
 // Update table
 function updateTable() {
     const tbody = document.querySelector('#employeesTable tbody');
+    if (!tbody) return;
+
     tbody.innerHTML = '';
 
     const activeEmployees = filteredData.filter(emp => emp.is_active).slice(0, 20);
+
+    if (activeEmployees.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="7" style="text-align: center;">لا توجد بيانات لعرضها</td></tr>';
+        return;
+    }
 
     activeEmployees.forEach(emp => {
         const row = tbody.insertRow();
@@ -656,7 +728,7 @@ function updateTable() {
         const salary = emp.salary ? parseFloat(emp.salary).toLocaleString() : 'غير محدد';
 
         row.innerHTML = `
-            <td>${emp.name}</td>
+            <td>${emp.name || 'غير محدد'}</td>
             <td>${emp.department_name || emp.department || 'غير محدد'}</td>
             <td>${emp.position || 'غير محدد'}</td>
             <td>${hireDate}</td>
@@ -694,47 +766,70 @@ function showAddEmployeeModal() {
 
     addNewEmployee(employeeData)
         .then(() => {
-            showMessage('تم إضافة الموظف بنجاح!', 'success');
+            showSuccess('تم إضافة الموظف بنجاح!');
             loadData(); // إعادة تحميل البيانات
         })
-        .catch(() => {
-            showMessage('خطأ في إضافة الموظف', 'error');
+        .catch((error) => {
+            showError('خطأ في إضافة الموظف: ' + error.message);
         });
 }
 
 // Export report
 function exportReport() {
-    const reportData = {
-        totalEmployees: filteredData.filter(emp => emp.is_active).length,
-        departmentDistribution: {},
-        educationDistribution: {},
-        timestamp: new Date().toLocaleString('ar-SA')
-    };
-
-    // Calculate distributions
-    filteredData.filter(emp => emp.is_active).forEach(emp => {
-        const dept = emp.department_name || emp.department;
-        if (dept) {
-            reportData.departmentDistribution[dept] = 
-                (reportData.departmentDistribution[dept] || 0) + 1;
+    try {
+        const activeEmployees = filteredData.filter(emp => emp.is_active);
+        
+        if (activeEmployees.length === 0) {
+            showError('لا توجد بيانات لتصديرها');
+            return;
         }
 
-        if (emp.education) {
-            reportData.educationDistribution[emp.education] = 
-                (reportData.educationDistribution[emp.education] || 0) + 1;
-        }
-    });
+        const reportData = {
+            totalEmployees: activeEmployees.length,
+            departmentDistribution: {},
+            educationDistribution: {},
+            employees: activeEmployees.map(emp => ({
+                name: emp.name,
+                department: emp.department_name || emp.department,
+                position: emp.position,
+                hireDate: emp.hire_date,
+                education: emp.education,
+                age: emp.age,
+                salary: emp.salary
+            })),
+            timestamp: new Date().toLocaleString('ar-SA')
+        };
 
-    const dataStr = JSON.stringify(reportData, null, 2);
-    const dataBlob = new Blob([dataStr], {type: 'application/json'});
-    const url = URL.createObjectURL(dataBlob);
+        // Calculate distributions
+        activeEmployees.forEach(emp => {
+            const dept = emp.department_name || emp.department;
+            if (dept) {
+                reportData.departmentDistribution[dept] = 
+                    (reportData.departmentDistribution[dept] || 0) + 1;
+            }
 
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `hr-report-${new Date().toISOString().split('T')[0]}.json`;
-    link.click();
+            if (emp.education) {
+                reportData.educationDistribution[emp.education] = 
+                    (reportData.educationDistribution[emp.education] || 0) + 1;
+            }
+        });
 
-    URL.revokeObjectURL(url);
+        const dataStr = JSON.stringify(reportData, null, 2);
+        const dataBlob = new Blob([dataStr], {type: 'application/json'});
+        const url = URL.createObjectURL(dataBlob);
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `hr-report-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+
+        URL.revokeObjectURL(url);
+        showSuccess('تم تصدير التقرير بنجاح!');
+    } catch (error) {
+        showError('خطأ في تصدير التقرير: ' + error.message);
+    }
 }
 
 // Initialize when page loads
