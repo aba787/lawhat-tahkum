@@ -8,6 +8,18 @@ let employeesData = [];
 let filteredData = [];
 let charts = {};
 
+// تحديد الـ base URL للـ API
+const getApiBaseUrl = () => {
+    // في حالة التطوير المحلي
+    if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
+        return '';
+    }
+    // في حالة النشر على Replit أو أي موقع آخر
+    return '';
+};
+
+const API_BASE_URL = getApiBaseUrl();
+
 // API Functions
 async function fetchEmployees(filters = {}) {
     try {
@@ -16,7 +28,7 @@ async function fetchEmployees(filters = {}) {
         if (filters.dateFrom) params.append('dateFrom', filters.dateFrom);
         if (filters.dateTo) params.append('dateTo', filters.dateTo);
 
-        const response = await fetch(`/api/employees?${params}`);
+        const response = await fetch(`${API_BASE_URL}/api/employees?${params}`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -29,7 +41,7 @@ async function fetchEmployees(filters = {}) {
 
 async function fetchStats() {
     try {
-        const response = await fetch('/api/stats');
+        const response = await fetch(`${API_BASE_URL}/api/stats`);
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -44,7 +56,7 @@ async function addNewEmployee(employeeData) {
     try {
         console.log('📤 إرسال بيانات الموظف:', employeeData);
         
-        const response = await fetch('/api/employees', {
+        const response = await fetch(`${API_BASE_URL}/api/employees`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -70,7 +82,7 @@ async function addNewEmployee(employeeData) {
 
 async function seedDatabase() {
     try {
-        const response = await fetch('/api/seed', { method: 'POST' });
+        const response = await fetch(`${API_BASE_URL}/api/seed`, { method: 'POST' });
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
@@ -84,7 +96,7 @@ async function seedDatabase() {
 // Check database health
 async function checkDatabaseHealth() {
     try {
-        const response = await fetch('/api/health');
+        const response = await fetch(`${API_BASE_URL}/api/health`);
         return response.ok;
     } catch (error) {
         console.error('خطأ في التحقق من صحة قاعدة البيانات:', error);
@@ -1361,12 +1373,12 @@ async function uploadFile() {
         console.log('🔄 بدء رفع الملف:', file.name, 'للموظف:', employeeId);
 
         // التحقق من الاتصال بالخادم أولاً
-        const healthCheck = await fetch('/api/health');
+        const healthCheck = await fetch(`${API_BASE_URL}/api/health`);
         if (!healthCheck.ok) {
             throw new Error('الخادم غير متاح حالياً');
         }
 
-        const response = await fetch('/api/upload', {
+        const response = await fetch(`${API_BASE_URL}/api/upload`, {
             method: 'POST',
             body: formData
         });
@@ -1429,7 +1441,7 @@ async function uploadFile() {
 // التحقق من حالة الخادم
 async function checkServerHealth() {
     try {
-        const response = await fetch('/api/health');
+        const response = await fetch(`${API_BASE_URL}/api/health`);
         const data = await response.json();
         return data.status === 'healthy' && data.database === 'connected';
     } catch (error) {
@@ -1441,7 +1453,7 @@ async function checkServerHealth() {
 // تحديث بيانات الموظف بالملف
 async function updateEmployeeWithFile(employeeId, fileUrl, fileType) {
     try {
-        const response = await fetch(`/api/employees/${employeeId}/files`, {
+        const response = await fetch(`${API_BASE_URL}/api/employees/${employeeId}/files`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
@@ -1486,18 +1498,38 @@ async function updateServerStatus() {
 
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', () => {
-    initializeDashboard();
+    console.log('🚀 بدء تهيئة التطبيق...');
+    
+    try {
+        initializeDashboard();
 
-    // إضافة مستمع لزر رفع الملف
-    const uploadFileBtn = document.getElementById('uploadFileBtn');
-    if (uploadFileBtn) {
-        uploadFileBtn.addEventListener('click', uploadFile);
+        // إضافة مستمع لزر رفع الملف
+        const uploadFileBtn = document.getElementById('uploadFileBtn');
+        if (uploadFileBtn) {
+            uploadFileBtn.addEventListener('click', uploadFile);
+        }
+
+        // Load initial data with a small delay to ensure DOM is ready
+        setTimeout(() => {
+            loadData();
+        }, 100);
+
+        // فحص حالة الخادم كل 30 ثانية
+        setInterval(updateServerStatus, 30000);
+        updateServerStatus();
+        
+        console.log('✅ تم تهيئة التطبيق بنجاح');
+    } catch (error) {
+        console.error('❌ خطأ في تهيئة التطبيق:', error);
+        showError('خطأ في تهيئة التطبيق: ' + error.message);
     }
+});
 
-    // Load initial data
-    loadData();
+// إضافة معالج خطأ عام للنافذة
+window.addEventListener('error', (event) => {
+    console.error('خطأ JavaScript غير معالج:', event.error);
+});
 
-    // فحص حالة الخادم كل 30 ثانية
-    setInterval(updateServerStatus, 30000);
-    updateServerStatus();
+window.addEventListener('unhandledrejection', (event) => {
+    console.error('Promise مرفوض غير معالج:', event.reason);
 });
