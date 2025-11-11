@@ -1473,10 +1473,10 @@ async function updateServerStatus() {
 
     if (statusElement) {
         if (isHealthy) {
-            statusElement.innerHTML = '<i class="fas fa-circle" style="color: #4CAF50;"></i> متصل';
+            statusElement.innerHTML = '<i class="fas fa-circle" style="color: #4CAF50;"></i>';
             statusElement.style.color = '#4CAF50';
         } else {
-            statusElement.innerHTML = '<i class="fas fa-circle" style="color: #f44336;"></i> غير متصل';
+            statusElement.innerHTML = '<i class="fas fa-circle" style="color: #f44336;"></i>';
             statusElement.style.color = '#f44336';
         }
     }
