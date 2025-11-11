@@ -364,8 +364,8 @@ app.post('/api/employees', async (req, res) => {
             validationErrors.push('تاريخ التعيين مطلوب');
         }
 
-        // التحقق من صحة الأسماء (لا تحتوي على أرقام أو رموز غريبة)
-        if (employeeData.name && !/^[a-zA-Zا-ي\s]+$/.test(employeeData.name.trim())) {
+        // التحقق من صحة الأسماء (يقبل العربية والإنجليزية)
+        if (employeeData.name && !/^[\u0600-\u06FFa-zA-Z\s]+$/.test(employeeData.name.trim())) {
             validationErrors.push('الاسم يجب أن يحتوي على حروف فقط');
         }
 

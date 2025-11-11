@@ -12,9 +12,13 @@ let charts = {};
 const getApiBaseUrl = () => {
     // في حالة التطوير المحلي
     if (location.hostname === 'localhost' || location.hostname === '127.0.0.1') {
-        return '';
+        return 'http://localhost:5000';
     }
-    // في حالة النشر على Replit أو أي موقع آخر
+    // في حالة النشر على Replit
+    if (location.hostname.includes('replit.app') || location.hostname.includes('repl.co')) {
+        return location.origin;
+    }
+    // الافتراضي
     return '';
 };
 
@@ -70,12 +74,45 @@ async function addNewEmployee(employeeData) {
         console.log('📋 بيانات الاستجابة:', responseData);
         
         if (!response.ok) {
-            throw new Error(responseData.error || responseData.details || `HTTP error! status: ${response.status}`);
+            // إظهار تفاصيل الخطأ للمطور
+            if (responseData.details && Array.isArray(responseData.details)) {
+                console.error('تفاصيل الأخطاء:', responseData.details);
+                throw new Error(responseData.details.join(', '));
+            }
+            throw new Error(responseData.error || `HTTP error! status: ${response.status}`);
         }
         
         return responseData;
     } catch (error) {
         console.error('❌ خطأ في إضافة الموظف:', error);
+        
+        // في حالة عدم وجود اتصال، إضافة الموظف محلياً
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            console.warn('🔄 لا يوجد اتصال بالخادم، سيتم إضافة الموظف محلياً');
+            
+            // إنشاء موظف وهمي للإضافة المحلية
+            const localEmployee = {
+                id: Math.max(...employeesData.map(emp => emp.id || 0), 0) + 1,
+                ...employeeData,
+                hire_date: employeeData.hireDate,
+                department_name: employeeData.department,
+                is_active: true,
+                absence_days: 0,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString()
+            };
+            
+            // إضافة إلى البيانات المحلية
+            employeesData.push(localEmployee);
+            filteredData = [...employeesData];
+            
+            return {
+                success: true,
+                employee: localEmployee,
+                message: 'تم إضافة الموظف محلياً (بدون اتصال بالخادم)'
+            };
+        }
+        
         throw error;
     }
 }
@@ -380,7 +417,7 @@ async function loadData() {
         // التحقق من حالة قاعدة البيانات أولاً
         const isHealthy = await checkDatabaseHealth();
         if (!isHealthy) {
-            console.warn('⚠️ قاعدة البيانات غير متاحة، محاولة استخدام البيانات المحلية...');
+            console.warn('⚠️ لا يمكن الاتصال بالخادم، سيتم استخدام البيانات المحلية...');
 
             // محاولة استخدام بيانات تجريبية محلية في حالة عدم توفر قاعدة البيانات
             const localData = generateLocalTestData();
@@ -391,11 +428,11 @@ async function loadData() {
 
                 populateDepartmentFilter();
                 await updateDashboard();
-                showMessage('تم تحميل البيانات التجريبية المحلية (قاعدة البيانات غير متاحة)', 'warning');
+                showWarning('يعمل التطبيق بالوضع المحلي (لا يوجد اتصال بالخادم)');
                 return;
             }
 
-            throw new Error('قاعدة البيانات غير متاحة. يرجى إنشاء PostgreSQL Database في Replit أولاً');
+            throw new Error('لا يمكن تحميل أي بيانات');
         }
 
         // محاولة إدراج البيانات التجريبية إذا كانت قاعدة البيانات فارغة
