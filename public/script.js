@@ -1250,10 +1250,28 @@ async function uploadFile() {
     const employeeId = document.getElementById('employeeIdForUpload')?.value;
     const fileType = document.getElementById('fileType')?.value;
     const fileInput = document.getElementById('fileInput');
-    const file = fileInput.files[0];
+    const file = fileInput?.files?.[0];
 
-    if (!employeeId || !file) {
-        showError('يرجى إدخال رقم الموظف واختيار ملف');
+    // التحقق من البيانات المطلوبة
+    if (!employeeId) {
+        showError('يرجى إدخال رقم الموظف');
+        return;
+    }
+    
+    if (!file) {
+        showError('يرجى اختيار ملف للرفع');
+        return;
+    }
+
+    if (!fileType) {
+        showError('يرجى اختيار نوع الملف');
+        return;
+    }
+
+    // التحقق من حجم الملف (5MB كحد أقصى)
+    const maxFileSize = 5 * 1024 * 1024; // 5MB
+    if (file.size > maxFileSize) {
+        showError('حجم الملف كبير جداً. الحد الأقصى 5 ميجابايت');
         return;
     }
 
@@ -1264,28 +1282,44 @@ async function uploadFile() {
 
     try {
         showLoading(true);
+        showMessage(`جاري رفع الملف "${file.name}"...`, 'info');
+        
         const response = await fetch('/api/upload', {
             method: 'POST',
             body: formData
         });
 
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            let errorMessage = 'خطأ في رفع الملف';
+            try {
+                const errorData = await response.json();
+                errorMessage = errorData.error || errorMessage;
+            } catch (e) {
+                console.error('خطأ في قراءة رسالة الخطأ:', e);
+            }
+            throw new Error(errorMessage);
         }
 
         const result = await response.json();
 
-        showSuccess('تم رفع الملف بنجاح!');
-        // إعادة تعيين النموذج
-        document.getElementById('employeeIdForUpload').value = '';
-        fileInput.value = '';
+        if (result.success) {
+            showSuccess(`تم رفع الملف "${file.name}" بنجاح!`);
+            // إعادة تعيين النموذج
+            document.getElementById('employeeIdForUpload').value = '';
+            fileInput.value = '';
 
-        // إضافة رابط الملف إلى قاعدة البيانات
-        await updateEmployeeWithFile(employeeId, result.fileUrl, fileType);
+            // إضافة رابط الملف إلى قاعدة البيانات
+            try {
+                await updateEmployeeWithFile(employeeId, result.fileUrl, fileType);
+            } catch (updateError) {
+                console.warn('تحذير: تم رفع الملف ولكن فشل في ربطه ببيانات الموظف:', updateError);
+            }
+        } else {
+            throw new Error(result.error || 'فشل في رفع الملف');
+        }
     } catch (error) {
+        console.error('خطأ تفصيلي في رفع الملف:', error);
         showError('خطأ في رفع الملف: ' + error.message);
-        console.error('Upload error:', error);
     } finally {
         showLoading(false);
     }

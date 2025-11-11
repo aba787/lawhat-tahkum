@@ -397,7 +397,7 @@ tbody tr:hover {
 }
 
 .btn-success {
-    background: linear-gradient(135deg, #48bb78, #38a169);
+    background: linear-gradient(135deg, #8B1538, #A01B3A);
     border: none;
     color: white;
     padding: 12px 20px;
@@ -413,7 +413,7 @@ tbody tr:hover {
 
 .btn-success:hover {
     transform: translateY(-2px);
-    box-shadow: 0 5px 15px rgba(72, 187, 120, 0.4);
+    box-shadow: 0 5px 15px rgba(139, 21, 56, 0.4);
 }
 
 /* Responsive Design */
