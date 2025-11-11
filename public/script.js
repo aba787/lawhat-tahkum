@@ -982,39 +982,232 @@ function updateTable() {
     });
 }
 
-// Show add employee modal (مبسط)
+// Show add employee modal
 function showAddEmployeeModal() {
-    const name = prompt('اسم الموظف:');
-    if (!name) return;
+    // إنشاء نافذة منبثقة لإضافة الموظف
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.innerHTML = `
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3><i class="fas fa-user-plus"></i> إضافة موظف جديد</h3>
+                <button class="modal-close" onclick="this.parentElement.parentElement.parentElement.remove()">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="addEmployeeForm">
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>الاسم *</label>
+                            <input type="text" id="empName" required placeholder="أدخل اسم الموظف">
+                        </div>
+                        <div class="form-group">
+                            <label>القسم *</label>
+                            <select id="empDepartment" required>
+                                <option value="">اختر القسم</option>
+                                <option value="الموارد البشرية">الموارد البشرية</option>
+                                <option value="المحاسبة والمالية">المحاسبة والمالية</option>
+                                <option value="الإدارة العامة">الإدارة العامة</option>
+                                <option value="التأمين والمخاطر">التأمين والمخاطر</option>
+                                <option value="المبيعات والتسويق">المبيعات والتسويق</option>
+                                <option value="تكنولوجيا المعلومات">تكنولوجيا المعلومات</option>
+                                <option value="تطوير البرمجيات">تطوير البرمجيات</option>
+                                <option value="أمن المعلومات">أمن المعلومات</option>
+                                <option value="تطوير التطبيقات">تطوير التطبيقات</option>
+                                <option value="الذكاء الاصطناعي">الذكاء الاصطناعي</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>المنصب</label>
+                            <input type="text" id="empPosition" placeholder="أدخل منصب الموظف">
+                        </div>
+                        <div class="form-group">
+                            <label>المؤهل التعليمي</label>
+                            <input type="text" id="empEducation" placeholder="مثال: بكالوريوس علوم حاسب">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>العمر</label>
+                            <input type="number" id="empAge" min="18" max="65" placeholder="العمر">
+                        </div>
+                        <div class="form-group">
+                            <label>الراتب</label>
+                            <input type="number" id="empSalary" min="0" step="100" placeholder="الراتب بالريال">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label>الجنس</label>
+                            <select id="empGender">
+                                <option value="">اختر الجنس</option>
+                                <option value="ذكر">ذكر</option>
+                                <option value="أنثى">أنثى</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label>تاريخ التوظيف</label>
+                            <input type="date" id="empHireDate" value="${new Date().toISOString().split('T')[0]}">
+                        </div>
+                    </div>
+                    <div class="modal-actions">
+                        <button type="button" class="btn btn-secondary" onclick="this.closest('.modal-overlay').remove()">
+                            إلغاء
+                        </button>
+                        <button type="submit" class="btn btn-success">
+                            <i class="fas fa-save"></i> حفظ الموظف
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    `;
 
-    const department = prompt('القسم:');
-    if (!department) return;
+    // إضافة التنسيقات للنافذة المنبثقة
+    const styles = `
+        <style>
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.7);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            font-family: 'Cairo', sans-serif;
+        }
+        .modal-content {
+            background: white;
+            border-radius: 12px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        }
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 20px;
+            border-bottom: 1px solid #eee;
+            background: #8B1538;
+            color: white;
+            border-radius: 12px 12px 0 0;
+        }
+        .modal-header h3 {
+            margin: 0;
+            font-size: 1.2rem;
+        }
+        .modal-close {
+            background: none;
+            border: none;
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 50%;
+            transition: background 0.3s;
+        }
+        .modal-close:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+        .modal-body {
+            padding: 20px;
+        }
+        .form-row {
+            display: flex;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        .form-group {
+            flex: 1;
+        }
+        .form-group label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: 600;
+            color: #333;
+        }
+        .form-group input,
+        .form-group select {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            font-family: 'Cairo', sans-serif;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus,
+        .form-group select:focus {
+            outline: none;
+            border-color: #8B1538;
+        }
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            margin-top: 20px;
+            padding-top: 15px;
+            border-top: 1px solid #eee;
+        }
+        </style>
+    `;
 
-    const position = prompt('المنصب:');
-    const education = prompt('المؤهل التعليمي:');
-    const age = parseInt(prompt('العمر:')) || 30;
-    const salary = parseFloat(prompt('الراتب:')) || 5000;
-    const gender = prompt('الجنس (ذكر/أنثى):') || 'ذكر';
+    // إضافة التنسيقات إلى الرأس
+    if (!document.querySelector('#modal-styles')) {
+        const styleElement = document.createElement('div');
+        styleElement.id = 'modal-styles';
+        styleElement.innerHTML = styles;
+        document.head.appendChild(styleElement);
+    }
 
-    const employeeData = {
-        name,
-        department,
-        position,
-        hireDate: new Date().toISOString().split('T')[0],
-        education,
-        age,
-        salary,
-        gender
-    };
+    // إضافة النافذة إلى الصفحة
+    document.body.appendChild(modal);
 
-    addNewEmployee(employeeData)
-        .then(() => {
+    // إضافة حدث الإرسال للنموذج
+    document.getElementById('addEmployeeForm').addEventListener('submit', async (e) => {
+        e.preventDefault();
+        
+        const employeeData = {
+            name: document.getElementById('empName').value.trim(),
+            department: document.getElementById('empDepartment').value,
+            position: document.getElementById('empPosition').value.trim(),
+            education: document.getElementById('empEducation').value.trim(),
+            age: parseInt(document.getElementById('empAge').value) || null,
+            salary: parseFloat(document.getElementById('empSalary').value) || null,
+            gender: document.getElementById('empGender').value,
+            hireDate: document.getElementById('empHireDate').value
+        };
+
+        // التحقق من البيانات المطلوبة
+        if (!employeeData.name) {
+            showError('يرجى إدخال اسم الموظف');
+            return;
+        }
+        if (!employeeData.department) {
+            showError('يرجى اختيار القسم');
+            return;
+        }
+
+        try {
+            showLoading(true);
+            await addNewEmployee(employeeData);
             showSuccess('تم إضافة الموظف بنجاح!');
+            modal.remove();
             loadData(); // إعادة تحميل البيانات
-        })
-        .catch((error) => {
-            showError('خطأ في إضافة الموظف: ' + (error.message || ''));
-        });
+        } catch (error) {
+            showError('خطأ في إضافة الموظف: ' + (error.message || 'خطأ غير متوقع'));
+        } finally {
+            showLoading(false);
+        }
+    });
 }
 
 // Export report
