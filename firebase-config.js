@@ -23,10 +23,10 @@ const storage = getStorage(app);
 // Storage helper functions
 const storageHelpers = {
   // رفع صورة موظف
-  async uploadEmployeePhoto(employeeId, file) {
+  async uploadEmployeePhoto(employeeId, fileBuffer) {
     try {
       // التحقق من صحة المعطيات
-      if (!employeeId || !file) {
+      if (!employeeId || !fileBuffer) {
         throw new Error('معرف الموظف والملف مطلوبان');
       }
 
@@ -37,7 +37,7 @@ const storageHelpers = {
       const fileName = `photo_${Date.now()}.jpg`;
       const storageRef = ref(storage, `employees/${employeeId}/photos/${fileName}`);
       
-      const snapshot = await uploadBytes(storageRef, file);
+      const snapshot = await uploadBytes(storageRef, fileBuffer);
       
       if (!snapshot) {
         throw new Error('فشل في رفع الصورة');

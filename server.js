@@ -15,6 +15,9 @@ const { initializeApp } = require('firebase/app');
 const { getStorage } = require('firebase/storage');
 const multer = require('multer'); // For handling file uploads
 
+// Import storage helpers from firebase-config
+const { storageHelpers } = require('./firebase-config');
+
 // Firebase configuration (replace with your actual config)
 const firebaseConfig = {
     apiKey: process.env.FIREBASE_API_KEY || "AIzaSyBBbtr_lbPaFU3Amy0hovgQILN0GSlGPuE",
@@ -33,28 +36,6 @@ const storage = getStorage(firebaseApp);
 // Configure Multer for in-memory file storage
 const storageConfig = multer.memoryStorage();
 const upload = multer(storageConfig);
-
-// Helper functions for Firebase Storage (assuming these are in a separate file or defined here)
-const storageHelpers = {
-    uploadEmployeePhoto: async (employeeId, buffer) => {
-        const fileName = `employees/${employeeId}/photo.jpg`; // Example naming convention
-        const storageRef = storage.ref(fileName);
-        await storageRef.put(buffer);
-        return storageRef.getDownloadURL();
-    },
-    uploadResume: async (employeeId, fileData) => {
-        const fileName = `employees/${employeeId}/resumes/${fileData.name}`;
-        const storageRef = storage.ref(fileName);
-        await storageRef.put(fileData.buffer);
-        return storageRef.getDownloadURL();
-    },
-    uploadDocument: async (employeeId, fileData, fileType) => {
-        const fileName = `employees/${employeeId}/documents/${fileType}/${fileData.name}`;
-        const storageRef = storage.ref(fileName);
-        await storageRef.put(fileData.buffer);
-        return storageRef.getDownloadURL();
-    }
-};
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -83,9 +64,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
     try {
         // التحقق من وجود الملف
         if (!req.file) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                error: 'لم يتم العثور على ملف للرفع' 
+                error: 'لم يتم العثور على ملف للرفع'
             });
         }
 
@@ -93,44 +74,44 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
 
         // التحقق من صحة البيانات المطلوبة
         if (!employeeId || !fileType) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                error: 'رقم الموظف ونوع الملف مطلوبان' 
+                error: 'رقم الموظف ونوع الملف مطلوبان'
             });
         }
 
         // التحقق من صحة معرف الموظف
         if (isNaN(employeeId) || employeeId <= 0) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                error: 'معرف الموظف غير صحيح' 
+                error: 'معرف الموظف غير صحيح'
             });
         }
 
         // التحقق من وجود الموظف في قاعدة البيانات
         const employeeCheck = await pool.query('SELECT id FROM employees WHERE id = $1', [employeeId]);
         if (employeeCheck.rows.length === 0) {
-            return res.status(404).json({ 
+            return res.status(404).json({
                 success: false,
-                error: 'الموظف غير موجود' 
+                error: 'الموظف غير موجود'
             });
         }
 
         // التحقق من نوع الملف المسموح
         const allowedFileTypes = ['photo', 'resume', 'document', 'certificate', 'contract'];
         if (!allowedFileTypes.includes(fileType)) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                error: 'نوع الملف غير مسموح' 
+                error: 'نوع الملف غير مسموح'
             });
         }
 
         // التحقق من حجم الملف (5MB كحد أقصى)
         const maxFileSize = 5 * 1024 * 1024; // 5MB
         if (req.file.size > maxFileSize) {
-            return res.status(400).json({ 
+            return res.status(400).json({
                 success: false,
-                error: 'حجم الملف كبير جداً. الحد الأقصى 5 ميجابايت' 
+                error: 'حجم الملف كبير جداً. الحد الأقصى 5 ميجابايت'
             });
         }
 
@@ -142,9 +123,9 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
                 case 'photo':
                     // التحقق من أن الملف صورة
                     if (!req.file.mimetype.startsWith('image/')) {
-                        return res.status(400).json({ 
+                        return res.status(400).json({
                             success: false,
-                            error: 'يجب أن يكون الملف صورة' 
+                            error: 'يجب أن يكون الملف صورة'
                         });
                     }
                     uploadResult = await storageHelpers.uploadEmployeePhoto(employeeId, req.file.buffer);
@@ -180,7 +161,7 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         }
 
         const fileUrl = typeof uploadResult === 'string' ? uploadResult : uploadResult.url;
-        
+
         if (!fileUrl) {
             return res.status(500).json({
                 success: false,
@@ -350,7 +331,7 @@ app.post('/api/employees', async (req, res) => {
         };
 
         const newEmployee = await addEmployee(cleanEmployeeData);
-        
+
         if (!newEmployee) {
             return res.status(500).json({
                 success: false,
@@ -366,7 +347,7 @@ app.post('/api/employees', async (req, res) => {
 
     } catch (error) {
         console.error('خطأ في إضافة الموظف:', error);
-        
+
         // معالجة أخطاء قاعدة البيانات المحددة
         if (error.code === '23505') { // duplicate key error
             return res.status(400).json({
@@ -375,7 +356,7 @@ app.post('/api/employees', async (req, res) => {
                 details: 'يوجد موظف بنفس البيانات'
             });
         }
-        
+
         if (error.code === '23503') { // foreign key constraint error
             return res.status(400).json({
                 success: false,
