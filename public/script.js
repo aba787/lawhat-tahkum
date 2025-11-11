@@ -1174,7 +1174,7 @@ function showAddEmployeeModal() {
     // إضافة حدث الإرسال للنموذج
     document.getElementById('addEmployeeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
-        
+
         const employeeData = {
             name: document.getElementById('empName').value.trim(),
             department: document.getElementById('empDepartment').value,
@@ -1245,7 +1245,7 @@ function exportReport() {
     URL.revokeObjectURL(url);
 }
 
-// File upload functions
+// رفع ملف
 async function uploadFile() {
     const employeeId = document.getElementById('employeeIdForUpload')?.value;
     const fileType = document.getElementById('fileType')?.value;
@@ -1257,7 +1257,7 @@ async function uploadFile() {
         showError('يرجى إدخال رقم الموظف');
         return;
     }
-    
+
     if (!file) {
         showError('يرجى اختيار ملف للرفع');
         return;
@@ -1275,6 +1275,20 @@ async function uploadFile() {
         return;
     }
 
+    // التحقق من نوع الملف
+    const allowedTypes = {
+        'photo': ['image/jpeg', 'image/png', 'image/gif'],
+        'resume': ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'contract': ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'],
+        'certificate': ['application/pdf', 'image/jpeg', 'image/png'],
+        'document': ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
+    };
+
+    if (allowedTypes[fileType] && !allowedTypes[fileType].includes(file.type)) {
+        showError(`نوع الملف غير مسموح. الأنواع المسموحة: ${allowedTypes[fileType].join(', ')}`);
+        return;
+    }
+
     const formData = new FormData();
     formData.append('file', file);
     formData.append('employeeId', employeeId);
@@ -1282,72 +1296,130 @@ async function uploadFile() {
 
     try {
         showLoading(true);
-        showMessage(`جاري رفع الملف "${file.name}"...`, 'info');
-        
+        console.log('🔄 بدء رفع الملف:', file.name, 'للموظف:', employeeId);
+
+        // التحقق من الاتصال بالخادم أولاً
+        const healthCheck = await fetch('/api/health');
+        if (!healthCheck.ok) {
+            throw new Error('الخادم غير متاح حالياً');
+        }
+
         const response = await fetch('/api/upload', {
             method: 'POST',
             body: formData
         });
 
+        console.log('📡 استجابة الخادم:', response.status, response.statusText);
+
+        let result;
+        try {
+            result = await response.json();
+            console.log('📋 بيانات الاستجابة:', result);
+        } catch (parseError) {
+            console.error('خطأ في تحليل الاستجابة:', parseError);
+            throw new Error('استجابة غير صحيحة من الخادم');
+        }
+
         if (!response.ok) {
-            let errorMessage = 'خطأ في رفع الملف';
-            try {
-                const errorData = await response.json();
-                errorMessage = errorData.error || errorMessage;
-            } catch (e) {
-                console.error('خطأ في قراءة رسالة الخطأ:', e);
-            }
+            const errorMessage = result?.error || `خطأ HTTP ${response.status}`;
+            console.error('❌ خطأ من الخادم:', errorMessage);
             throw new Error(errorMessage);
         }
 
-        const result = await response.json();
-
         if (result.success) {
+            console.log('✅ تم رفع الملف بنجاح:', result.fileUrl);
             showSuccess(`تم رفع الملف "${file.name}" بنجاح!`);
+
             // إعادة تعيين النموذج
             document.getElementById('employeeIdForUpload').value = '';
             fileInput.value = '';
+            document.getElementById('fileType').selectedIndex = 0;
 
             // إضافة رابط الملف إلى قاعدة البيانات
             try {
                 await updateEmployeeWithFile(employeeId, result.fileUrl, fileType);
             } catch (updateError) {
-                console.warn('تحذير: تم رفع الملف ولكن فشل في ربطه ببيانات الموظف:', updateError);
+                console.warn('⚠️ تحذير: تم رفع الملف ولكن فشل في ربطه ببيانات الموظف:', updateError);
+                showMessage('تم رفع الملف بنجاح ولكن فشل في ربطه ببيانات الموظف', 'warning');
             }
         } else {
-            throw new Error(result.error || 'فشل في رفع الملف');
+            const errorMsg = result.error || 'فشل في رفع الملف';
+            console.error('❌ فشل الرفع:', errorMsg);
+            throw new Error(errorMsg);
         }
     } catch (error) {
-        console.error('خطأ تفصيلي في رفع الملف:', error);
-        showError('خطأ في رفع الملف: ' + error.message);
+        console.error('💥 خطأ تفصيلي في رفع الملف:', error);
+
+        if (error.name === 'TypeError' && error.message.includes('fetch')) {
+            showError('لا يمكن الاتصال بالخادم. تأكد من تشغيل التطبيق');
+        } else if (error.message.includes('413')) {
+            showError('حجم الملف كبير جداً');
+        } else if (error.message.includes('415')) {
+            showError('نوع الملف غير مدعوم');
+        } else {
+            showError('خطأ في رفع الملف: ' + error.message);
+        }
     } finally {
         showLoading(false);
     }
 }
 
+// التحقق من حالة الخادم
+async function checkServerHealth() {
+    try {
+        const response = await fetch('/api/health');
+        const data = await response.json();
+        return data.status === 'healthy' && data.database === 'connected';
+    } catch (error) {
+        console.error('خطأ في فحص صحة الخادم:', error);
+        return false;
+    }
+}
+
+// تحديث بيانات الموظف بالملف
 async function updateEmployeeWithFile(employeeId, fileUrl, fileType) {
     try {
         const response = await fetch(`/api/employees/${employeeId}/files`, {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json',
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify({
                 fileUrl,
                 fileType,
                 uploadDate: new Date().toISOString()
-            }),
+            })
         });
 
         if (!response.ok) {
-            console.error('خطأ في تحديث بيانات الموظف بالملف');
-            const errorData = await response.json();
-            throw new Error(errorData.error || 'فشل تحديث بيانات الموظف');
+            const errorData = await response.json().catch(() => null);
+            throw new Error(errorData?.error || `HTTP error! status: ${response.status}`);
         }
+
+        const result = await response.json();
+        return result;
     } catch (error) {
         console.error('خطأ في تحديث بيانات الموظف:', error);
-        // لا نعرض رسالة خطأ هنا لأنها قد تكون ثانوية لعملية رفع الملف الرئيسية
+        throw error;
     }
+}
+
+// عرض حالة الخادم
+async function updateServerStatus() {
+    const isHealthy = await checkServerHealth();
+    const statusElement = document.getElementById('server-status');
+
+    if (statusElement) {
+        if (isHealthy) {
+            statusElement.innerHTML = '<i class="fas fa-circle" style="color: #4CAF50;"></i> متصل';
+            statusElement.style.color = '#4CAF50';
+        } else {
+            statusElement.innerHTML = '<i class="fas fa-circle" style="color: #f44336;"></i> غير متصل';
+            statusElement.style.color = '#f44336';
+        }
+    }
+
+    return isHealthy;
 }
 
 // Initialize when page loads
@@ -1362,4 +1434,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Load initial data
     loadData();
+
+    // فحص حالة الخادم كل 30 ثانية
+    setInterval(updateServerStatus, 30000);
+    updateServerStatus();
 });

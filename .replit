@@ -3,6 +3,7 @@ modules = ["nodejs-20", "web"]
 
 [nix]
 channel = "stable-24_11"
+packages = ["u-root-cmds"]
 
 [deployment]
 run = ["node", "server.js"]
@@ -21,12 +22,7 @@ mode = "sequential"
 
 [[workflows.workflow.tasks]]
 task = "shell.exec"
-args = "npm install"
-
-[[workflows.workflow.tasks]]
-task = "shell.exec"
 args = "node server.js"
-waitForPort = 5000
 
 [[ports]]
 localPort = 5000
