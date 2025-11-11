@@ -343,7 +343,7 @@ tbody tr:hover {
 
 /* File Upload Section */
 .file-upload-section {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    background: linear-gradient(135deg, #8B1538 0%, #A01B3A 100%);
     color: white;
     padding: 25px;
     border-radius: 15px;
@@ -523,6 +523,27 @@ tbody tr:hover {
         padding: 8px 6px;
         font-size: 0.8rem;
     }
+
+    .file-upload-section {
+        padding: 15px;
+    }
+
+    .file-upload-section h3 {
+        font-size: 1.1rem;
+        flex-direction: column;
+        text-align: center;
+        gap: 5px;
+    }
+
+    .upload-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .btn-success {
+        padding: 10px 15px;
+        font-size: 0.9rem;
+        justify-content: center;
+    }
 }
 
 /* موبايل متوسط */
@@ -573,6 +594,18 @@ tbody tr:hover {
         grid-template-columns: repeat(2, 1fr);
         gap: 18px;
     }
+
+    .file-upload-section {
+        padding: 18px;
+    }
+
+    .upload-controls {
+        grid-template-columns: 1fr;
+    }
+
+    .btn-success {
+        padding: 12px 20px;
+    }
 }
 
 /* تابلت */
@@ -614,6 +647,10 @@ tbody tr:hover {
         grid-template-columns: repeat(3, 1fr);
         gap: 18px;
     }
+
+    .file-upload-section {
+        padding: 20px;
+    }
 }
 
 /* شاشات كبيرة */
@@ -628,6 +665,10 @@ tbody tr:hover {
 
     .department-cards-grid {
         grid-template-columns: repeat(4, 1fr);
+    }
+
+    .file-upload-section {
+        padding: 25px;
     }
 }
 
@@ -652,6 +693,10 @@ tbody tr:hover {
     .department-cards-grid {
         grid-template-columns: repeat(5, 1fr);
     }
+
+    .file-upload-section {
+        padding: 25px;
+    }
 }
 
 /* تحسينات إضافية للأجهزة اللمسية */
@@ -673,13 +718,19 @@ tbody tr:hover {
     .department-card:hover {
         transform: none;
     }
+
+    .file-upload-section .btn-success:hover {
+        transform: none;
+        box-shadow: none;
+    }
 }
 
 /* تحسينات للطباعة */
 @media print {
     .header-controls,
     .filters-section,
-    .loading-spinner {
+    .loading-spinner,
+    .file-upload-section {
         display: none !important;
     }
 
@@ -698,7 +749,7 @@ tbody tr:hover {
 }
 
 /* Animation for elements */
-.kpi-card, .chart-container, .filters-section, .table-section {
+.kpi-card, .chart-container, .filters-section, .table-section, .file-upload-section {
     animation: fadeInUp 0.6s ease forwards;
     opacity: 0;
     transform: translateY(30px);
