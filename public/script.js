@@ -749,5 +749,77 @@ function exportReport() {
     URL.revokeObjectURL(url);
 }
 
+// File upload functions
+async function uploadFile() {
+    const employeeId = document.getElementById('employeeIdForUpload').value;
+    const fileType = document.getElementById('fileType').value;
+    const fileInput = document.getElementById('fileInput');
+    const file = fileInput.files[0];
+
+    if (!employeeId || !file) {
+        showMessage('يرجى إدخال رقم الموظف واختيار ملف', 'error');
+        return;
+    }
+
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('employeeId', employeeId);
+    formData.append('fileType', fileType);
+
+    try {
+        showLoading(true);
+        const response = await fetch('/api/upload', {
+            method: 'POST',
+            body: formData
+        });
+
+        const result = await response.json();
+
+        if (response.ok) {
+            showMessage('تم رفع الملف بنجاح!', 'success');
+            // إعادة تعيين النموذج
+            document.getElementById('employeeIdForUpload').value = '';
+            fileInput.value = '';
+            
+            // إضافة رابط الملف إلى قاعدة البيانات
+            await updateEmployeeWithFile(employeeId, result.fileUrl, fileType);
+        } else {
+            showMessage('خطأ في رفع الملف: ' + result.error, 'error');
+        }
+    } catch (error) {
+        showMessage('خطأ في رفع الملف', 'error');
+        console.error('Upload error:', error);
+    } finally {
+        showLoading(false);
+    }
+}
+
+async function updateEmployeeWithFile(employeeId, fileUrl, fileType) {
+    try {
+        const response = await fetch(`/api/employees/${employeeId}/files`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                fileUrl,
+                fileType,
+                uploadDate: new Date().toISOString()
+            }),
+        });
+
+        if (!response.ok) {
+            console.error('خطأ في تحديث بيانات الموظف بالملف');
+        }
+    } catch (error) {
+        console.error('خطأ في تحديث بيانات الموظف:', error);
+    }
+}
+
 // Initialize when page loads
-document.addEventListener('DOMContentLoaded', initializeDashboard);
+document.addEventListener('DOMContentLoaded', function() {
+    initializeDashboard();
+    
+    // إضافة مستمع لزر رفع الملف
+    document.getElementById('uploadFileBtn').addEventListener('click', uploadFile);
+});
