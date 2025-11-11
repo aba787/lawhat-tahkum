@@ -42,6 +42,8 @@ async function fetchStats() {
 
 async function addNewEmployee(employeeData) {
     try {
+        console.log('📤 إرسال بيانات الموظف:', employeeData);
+        
         const response = await fetch('/api/employees', {
             method: 'POST',
             headers: {
@@ -49,13 +51,19 @@ async function addNewEmployee(employeeData) {
             },
             body: JSON.stringify(employeeData),
         });
+        
+        console.log('📡 استجابة الخادم:', response.status, response.statusText);
+        
+        const responseData = await response.json();
+        console.log('📋 بيانات الاستجابة:', responseData);
+        
         if (!response.ok) {
-            const errorData = await response.json();
-            throw new Error(errorData.error || `HTTP error! status: ${response.status}`);
+            throw new Error(responseData.error || responseData.details || `HTTP error! status: ${response.status}`);
         }
-        return await response.json();
+        
+        return responseData;
     } catch (error) {
-        console.error('خطأ في إضافة الموظف:', error);
+        console.error('❌ خطأ في إضافة الموظف:', error);
         throw error;
     }
 }
@@ -229,14 +237,17 @@ function showLoading(show) {
 
 // Specific success/error/warning message helpers
 function showSuccess(message) {
+    console.log('✅ رسالة نجاح:', message);
     showMessage(message, 'success');
 }
 
 function showError(message) {
+    console.error('❌ رسالة خطأ:', message);
     showMessage(message, 'error');
 }
 
 function showWarning(message) {
+    console.warn('⚠️ رسالة تحذير:', message);
     showMessage(message, 'warning');
 }
 
@@ -1195,14 +1206,27 @@ function showAddEmployeeModal() {
             showError('يرجى اختيار القسم');
             return;
         }
+        if (!employeeData.hireDate) {
+            showError('يرجى إدخال تاريخ التوظيف');
+            return;
+        }
 
         try {
             showLoading(true);
-            await addNewEmployee(employeeData);
-            showSuccess('تم إضافة الموظف بنجاح!');
-            modal.remove();
-            loadData(); // إعادة تحميل البيانات
+            const result = await addNewEmployee(employeeData);
+            
+            if (result && result.success) {
+                showSuccess('تم إضافة الموظف بنجاح!');
+                modal.remove();
+                // إعادة تحميل البيانات مع تأخير بسيط
+                setTimeout(() => {
+                    loadData();
+                }, 500);
+            } else {
+                throw new Error(result?.error || 'فشل في إضافة الموظف');
+            }
         } catch (error) {
+            console.error('خطأ في إضافة الموظف:', error);
             showError('خطأ في إضافة الموظف: ' + (error.message || 'خطأ غير متوقع'));
         } finally {
             showLoading(false);
