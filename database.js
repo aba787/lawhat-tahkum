@@ -186,6 +186,11 @@ async function getAllEmployees(filters = {}) {
             query += ` AND e.hire_date <= $${params.length}`;
         }
 
+        if (filters.departmentName) {
+            params.push(filters.departmentName);
+            query += ` AND d.name = $${params.length}`;
+        }
+
         query += ' ORDER BY e.created_at DESC';
 
         const result = await pool.query(query, params);
