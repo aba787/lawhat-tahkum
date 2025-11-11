@@ -45,6 +45,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// إضافة خدمة الملفات المرفوعة محلياً
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+
 // Initialize database
 initializeDatabase().then(() => {
     console.log('تم تهيئة قاعدة البيانات');

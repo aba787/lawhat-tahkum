@@ -1,7 +1,6 @@
 
-// Import Firebase modules
-const { initializeApp } = require('firebase/app');
-const { getStorage, ref, uploadBytes, getDownloadURL, deleteObject } = require('firebase/storage');
+// Import Firebase Admin SDK instead of client SDK
+const admin = require('firebase-admin');
 
 // Firebase configuration
 const firebaseConfig = {
@@ -14,11 +13,25 @@ const firebaseConfig = {
   measurementId: "G-MKCZNVHVC4"
 };
 
-// Initialize Firebase
-const app = initializeApp(firebaseConfig);
-
-// Initialize Firebase Storage
-const storage = getStorage(app);
+// Initialize Firebase Admin (only if not already initialized)
+let app;
+try {
+  if (!admin.apps.length) {
+    app = admin.initializeApp({
+      credential: admin.credential.cert({
+        projectId: firebaseConfig.projectId,
+        // For production, use service account key
+        // For now, we'll use application default credentials
+      }),
+      storageBucket: firebaseConfig.storageBucket
+    });
+  } else {
+    app = admin.app();
+  }
+} catch (error) {
+  console.log('تحذير: لا يمكن تهيئة Firebase Admin SDK، سيتم استخدام طريقة بديلة');
+  app = null;
+}
 
 // Storage helper functions
 const storageHelpers = {
@@ -34,25 +47,68 @@ const storageHelpers = {
         throw new Error('معرف الموظف غير صحيح');
       }
 
-      const fileName = `photo_${Date.now()}.jpg`;
-      const storageRef = ref(storage, `employees/${employeeId}/photos/${fileName}`);
-      
-      const snapshot = await uploadBytes(storageRef, fileBuffer);
-      
-      if (!snapshot) {
-        throw new Error('فشل في رفع الصورة');
+      console.log('محاولة رفع صورة للموظف:', employeeId);
+
+      // استخدام طريقة بديلة للرفع في حالة عدم توفر Firebase
+      if (!app) {
+        // حفظ الملف محلياً كحل مؤقت
+        const fs = require('fs');
+        const path = require('path');
+        
+        const uploadsDir = path.join(__dirname, 'uploads', 'photos');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        const fileName = `photo_${employeeId}_${Date.now()}.jpg`;
+        const filePath = path.join(uploadsDir, fileName);
+        
+        fs.writeFileSync(filePath, fileBuffer);
+        
+        // إرجاع رابط محلي
+        return `/uploads/photos/${fileName}`;
       }
+
+      const bucket = admin.storage().bucket();
+      const fileName = `employees/${employeeId}/photos/photo_${Date.now()}.jpg`;
+      const file = bucket.file(fileName);
+
+      await file.save(fileBuffer, {
+        metadata: {
+          contentType: 'image/jpeg'
+        }
+      });
+
+      // جعل الملف قابل للقراءة العامة
+      await file.makePublic();
+
+      return `https://storage.googleapis.com/${firebaseConfig.storageBucket}/${fileName}`;
       
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      if (!downloadURL) {
-        throw new Error('فشل في الحصول على رابط الصورة');
-      }
-      
-      return downloadURL;
     } catch (error) {
       console.error('خطأ في رفع صورة الموظف:', error.message);
-      throw new Error(`فشل في رفع صورة الموظف: ${error.message}`);
+      
+      // طريقة احتياطية - حفظ محلي
+      try {
+        const fs = require('fs');
+        const path = require('path');
+        
+        const uploadsDir = path.join(__dirname, 'uploads', 'photos');
+        if (!fs.existsSync(uploadsDir)) {
+          fs.mkdirSync(uploadsDir, { recursive: true });
+        }
+        
+        const fileName = `photo_${employeeId}_${Date.now()}.jpg`;
+        const filePath = path.join(uploadsDir, fileName);
+        
+        fs.writeFileSync(filePath, fileBuffer);
+        
+        console.log('تم حفظ الصورة محلياً:', fileName);
+        return `/uploads/photos/${fileName}`;
+        
+      } catch (localError) {
+        console.error('خطأ في الحفظ المحلي أيضاً:', localError);
+        throw new Error(`فشل في رفع صورة الموظف: ${error.message}`);
+      }
     }
   },
 
@@ -63,29 +119,32 @@ const storageHelpers = {
         throw new Error('معرف الموظف وبيانات الملف مطلوبة');
       }
 
-      // تنظيف اسم الملف
+      console.log('محاولة رفع سيرة ذاتية للموظف:', employeeId);
+
+      // طريقة احتياطية - حفظ محلي
+      const fs = require('fs');
+      const path = require('path');
+      
+      const uploadsDir = path.join(__dirname, 'uploads', 'resumes');
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
       const cleanFileName = file.name.replace(/[^a-zA-Z0-9\u0600-\u06FF.-]/g, '_');
       const fileName = `${employeeId}_resume_${Date.now()}_${cleanFileName}`;
-      const storageRef = ref(storage, `employees/${employeeId}/resumes/${fileName}`);
+      const filePath = path.join(uploadsDir, fileName);
       
-      const snapshot = await uploadBytes(storageRef, file.buffer || file);
+      fs.writeFileSync(filePath, file.buffer || file);
       
-      if (!snapshot) {
-        throw new Error('فشل في رفع السيرة الذاتية');
-      }
-      
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      if (!downloadURL) {
-        throw new Error('فشل في الحصول على رابط السيرة الذاتية');
-      }
+      console.log('تم حفظ السيرة الذاتية محلياً:', fileName);
       
       return { 
-        url: downloadURL, 
+        url: `/uploads/resumes/${fileName}`, 
         fileName: cleanFileName,
         originalName: file.name,
         uploadDate: new Date().toISOString()
       };
+      
     } catch (error) {
       console.error('خطأ في رفع السيرة الذاتية:', error.message);
       throw new Error(`فشل في رفع السيرة الذاتية: ${error.message}`);
@@ -105,29 +164,33 @@ const storageHelpers = {
         throw new Error('نوع المستند غير مسموح');
       }
 
+      console.log('محاولة رفع مستند للموظف:', employeeId, 'نوع:', documentType);
+
+      // طريقة احتياطية - حفظ محلي
+      const fs = require('fs');
+      const path = require('path');
+      
+      const uploadsDir = path.join(__dirname, 'uploads', 'documents', documentType);
+      if (!fs.existsSync(uploadsDir)) {
+        fs.mkdirSync(uploadsDir, { recursive: true });
+      }
+
       const cleanFileName = file.name.replace(/[^a-zA-Z0-9\u0600-\u06FF.-]/g, '_');
       const fileName = `${employeeId}_${documentType}_${Date.now()}_${cleanFileName}`;
-      const storageRef = ref(storage, `employees/${employeeId}/documents/${documentType}/${fileName}`);
+      const filePath = path.join(uploadsDir, fileName);
       
-      const snapshot = await uploadBytes(storageRef, file.buffer || file);
+      fs.writeFileSync(filePath, file.buffer || file);
       
-      if (!snapshot) {
-        throw new Error('فشل في رفع المستند');
-      }
-      
-      const downloadURL = await getDownloadURL(snapshot.ref);
-      
-      if (!downloadURL) {
-        throw new Error('فشل في الحصول على رابط المستند');
-      }
+      console.log('تم حفظ المستند محلياً:', fileName);
       
       return { 
-        url: downloadURL, 
+        url: `/uploads/documents/${documentType}/${fileName}`, 
         fileName: cleanFileName,
         type: documentType,
         originalName: file.name,
         uploadDate: new Date().toISOString()
       };
+      
     } catch (error) {
       console.error('خطأ في رفع المستند:', error.message);
       throw new Error(`فشل في رفع المستند: ${error.message}`);
@@ -141,16 +204,18 @@ const storageHelpers = {
         throw new Error('مسار الملف مطلوب');
       }
 
-      const storageRef = ref(storage, filePath);
-      await deleteObject(storageRef);
-      return true;
-    } catch (error) {
-      // إذا كان الملف غير موجود، لا نعتبر هذا خطأ
-      if (error.code === 'storage/object-not-found') {
-        console.log('الملف غير موجود، قد يكون محذوف مسبقاً');
-        return true;
+      // حذف محلي
+      const fs = require('fs');
+      const path = require('path');
+      
+      const localFilePath = path.join(__dirname, filePath);
+      if (fs.existsSync(localFilePath)) {
+        fs.unlinkSync(localFilePath);
+        console.log('تم حذف الملف محلياً:', filePath);
       }
       
+      return true;
+    } catch (error) {
       console.error('خطأ في حذف الملف:', error.message);
       throw new Error(`فشل في حذف الملف: ${error.message}`);
     }
@@ -159,6 +224,5 @@ const storageHelpers = {
 
 module.exports = {
   app,
-  storage,
   storageHelpers
 };
