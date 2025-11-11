@@ -134,9 +134,17 @@ async function seedDatabase() {
 async function checkDatabaseHealth() {
     try {
         const response = await fetch(`${API_BASE_URL}/api/health`);
-        return response.ok;
+        if (!response.ok) {
+            console.error('خطأ في استجابة الخادم:', response.status, response.statusText);
+            return false;
+        }
+        
+        const healthData = await response.json();
+        console.log('✅ فحص صحة قاعدة البيانات:', healthData);
+        
+        return healthData.status === 'healthy' && healthData.database === 'connected';
     } catch (error) {
-        console.error('خطأ في التحقق من صحة قاعدة البيانات:', error);
+        console.error('❌ خطأ في التحقق من صحة قاعدة البيانات:', error);
         return false;
     }
 }
@@ -1518,16 +1526,41 @@ async function updateEmployeeWithFile(employeeId, fileUrl, fileType) {
 // عرض حالة الخادم
 async function updateServerStatus() {
     const isHealthy = await checkServerHealth();
-    const statusElement = document.getElementById('server-status');
+    let statusElement = document.getElementById('server-status');
 
-    if (statusElement) {
-        if (isHealthy) {
-            statusElement.innerHTML = '<i class="fas fa-circle" style="color: #4CAF50;"></i>';
-            statusElement.style.color = '#4CAF50';
-        } else {
-            statusElement.innerHTML = '<i class="fas fa-circle" style="color: #f44336;"></i>';
-            statusElement.style.color = '#f44336';
-        }
+    // إنشاء عنصر حالة الخادم إذا لم يكن موجوداً
+    if (!statusElement) {
+        statusElement = document.createElement('div');
+        statusElement.id = 'server-status';
+        statusElement.style.cssText = `
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            z-index: 1000;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 8px 12px;
+            border-radius: 20px;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+            font-family: Cairo, sans-serif;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        `;
+        document.body.appendChild(statusElement);
+    }
+
+    if (isHealthy) {
+        statusElement.innerHTML = '<i class="fas fa-circle" style="color: #4CAF50;"></i> قاعدة البيانات متصلة';
+        statusElement.style.color = '#4CAF50';
+        console.log('✅ قاعدة البيانات متصلة');
+    } else {
+        statusElement.innerHTML = '<i class="fas fa-circle" style="color: #f44336;"></i> قاعدة البيانات غير متاحة';
+        statusElement.style.color = '#f44336';
+        console.log('❌ قاعدة البيانات غير متاحة');
+        
+        // عرض رسالة تحذيرية للمستخدم
+        showError('قاعدة البيانات غير متاحة - يتم تحميل البيانات التجريبية المحلية');
     }
 
     return isHealthy;
