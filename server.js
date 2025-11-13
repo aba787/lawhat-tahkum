@@ -7,7 +7,8 @@ const {
     getAllEmployees,
     getEmployeeStats,
     seedDatabase,
-    pool
+    db,
+    closeDatabase
 } = require('./database');
 
 // Import Firebase and storage helper functions
@@ -65,11 +66,10 @@ app.use((req, res, next) => {
 
 // Initialize database
 initializeDatabase().then(() => {
-    console.log('تم تهيئة قاعدة البيانات');
+    console.log('تم تهيئة قاعدة البيانات SQLite بنجاح');
+    console.log('قاعدة البيانات جاهزة للاستخدام');
 }).catch((error) => {
     console.error('خطأ في تهيئة قاعدة البيانات:', error.message);
-    console.log('يرجى إنشاء قاعدة البيانات PostgreSQL في Replit أولاً');
-    console.log('اضغط على + في الشريط الجانبي > Database > PostgreSQL');
 });
 
 // الصفحة الرئيسية
@@ -132,8 +132,14 @@ app.post('/api/upload', upload.single('file'), async (req, res) => {
         }
 
         // التحقق من وجود الموظف في قاعدة البيانات
-        const employeeCheck = await pool.query('SELECT id FROM employees WHERE id = $1', [employeeId]);
-        if (employeeCheck.rows.length === 0) {
+        const employeeCheck = await new Promise((resolve, reject) => {
+            db.get('SELECT id FROM employees WHERE id = ?', [employeeId], (err, row) => {
+                if (err) reject(err);
+                else resolve(row);
+            });
+        });
+        
+        if (!employeeCheck) {
             return res.status(404).json({
                 success: false,
                 error: 'الموظف غير موجود'
@@ -307,11 +313,23 @@ app.post('/api/employees/:id/files', async (req, res) => {
 // Health check endpoint
 app.get('/api/health', async (req, res) => {
     try {
-        await pool.query('SELECT 1');
-        res.json({
-            status: 'healthy',
-            database: 'connected',
-            timestamp: new Date().toISOString()
+        // فحص بسيط لقاعدة البيانات SQLite
+        db.get('SELECT 1 as test', (err, row) => {
+            if (err) {
+                console.error('Database health check failed:', err);
+                res.status(500).json({
+                    status: 'unhealthy',
+                    database: 'غير متصل',
+                    error: err.message,
+                    timestamp: new Date().toISOString()
+                });
+            } else {
+                res.json({
+                    status: 'healthy',
+                    database: 'connected',
+                    timestamp: new Date().toISOString()
+                });
+            }
         });
     } catch (error) {
         console.error('Database health check failed:', error);
@@ -523,18 +541,22 @@ server.on('error', (err) => {
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
     console.log('إيقاف الخادم...');
-    if (pool) {
-        pool.end();
+    try {
+        await closeDatabase();
+    } catch (error) {
+        console.error('خطأ في إغلاق قاعدة البيانات:', error);
     }
     process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('إيقاف الخادم...');
-    if (pool) {
-        pool.end();
+    try {
+        await closeDatabase();
+    } catch (error) {
+        console.error('خطأ في إغلاق قاعدة البيانات:', error);
     }
     process.exit(0);
 });

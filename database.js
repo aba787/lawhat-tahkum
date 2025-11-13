@@ -1,51 +1,93 @@
-const { Pool } = require('pg');
 
-// إعداد اتصال قاعدة البيانات
-const pool = new Pool({
-    connectionString: process.env.DATABASE_URL,
-    max: 10,
-    ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+const sqlite3 = require('sqlite3').verbose();
+const path = require('path');
+
+// إعداد قاعدة البيانات SQLite
+const dbPath = path.join(__dirname, 'hr_database.sqlite');
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+        console.error('خطأ في الاتصال بقاعدة البيانات:', err);
+    } else {
+        console.log('تم الاتصال بقاعدة البيانات بنجاح');
+    }
 });
 
-// Test connection
-pool.on('connect', () => {
-    console.log('تم الاتصال بقاعدة البيانات بنجاح');
-});
+// تمكين Foreign Keys في SQLite
+db.run('PRAGMA foreign_keys = ON');
 
-pool.on('error', (err) => {
-    console.error('خطأ في اتصال قاعدة البيانات:', err);
-});
+// وظائف مساعدة للتعامل مع SQLite
+const runAsync = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.run(sql, params, function(err) {
+            if (err) {
+                reject(err);
+            } else {
+                resolve({ id: this.lastID, changes: this.changes });
+            }
+        });
+    });
+};
+
+const getAsync = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.get(sql, params, (err, row) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(row);
+            }
+        });
+    });
+};
+
+const allAsync = (sql, params = []) => {
+    return new Promise((resolve, reject) => {
+        db.all(sql, params, (err, rows) => {
+            if (err) {
+                reject(err);
+            } else {
+                resolve(rows);
+            }
+        });
+    });
+};
 
 // إنشاء الجداول المطلوبة
 async function initializeDatabase() {
     try {
         // جدول الأقسام
-        await pool.query(`
+        await runAsync(`
             CREATE TABLE IF NOT EXISTS departments (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(100) NOT NULL UNIQUE,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `);
 
         // جدول الموظفين
-        await pool.query(`
+        await runAsync(`
             CREATE TABLE IF NOT EXISTS employees (
-                id SERIAL PRIMARY KEY,
-                name VARCHAR(200) NOT NULL,
-                department_id INTEGER REFERENCES departments(id),
-                position VARCHAR(100),
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                department_id INTEGER,
+                position TEXT,
                 hire_date DATE NOT NULL,
-                education VARCHAR(50),
+                education TEXT,
                 age INTEGER,
-                salary DECIMAL(10,2),
-                gender VARCHAR(10),
-                is_active BOOLEAN DEFAULT TRUE,
+                salary REAL,
+                gender TEXT,
+                is_active BOOLEAN DEFAULT 1,
                 absence_days INTEGER DEFAULT 0,
-                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (department_id) REFERENCES departments(id)
             )
         `);
+
+        // إنشاء فهارس لتحسين الأداء
+        await runAsync('CREATE INDEX IF NOT EXISTS idx_employees_department ON employees(department_id)');
+        await runAsync('CREATE INDEX IF NOT EXISTS idx_employees_hire_date ON employees(hire_date)');
+        await runAsync('CREATE INDEX IF NOT EXISTS idx_employees_is_active ON employees(is_active)');
 
         // إدراج الأقسام الأساسية إذا لم تكن موجودة
         const departments = [
@@ -96,10 +138,12 @@ async function initializeDatabase() {
         ];
 
         for (const dept of departments) {
-            await pool.query(
-                'INSERT INTO departments (name) VALUES ($1) ON CONFLICT (name) DO NOTHING',
-                [dept]
-            );
+            try {
+                await runAsync('INSERT OR IGNORE INTO departments (name) VALUES (?)', [dept]);
+            } catch (error) {
+                // تجاهل أخطاء التكرار
+                console.log(`القسم "${dept}" موجود بالفعل`);
+            }
         }
 
         console.log('تم إعداد قاعدة البيانات بنجاح');
@@ -110,53 +154,46 @@ async function initializeDatabase() {
 
 // إضافة موظف جديد
 async function addEmployee(employeeData) {
-    const client = await pool.connect();
-    
     try {
-        await client.query('BEGIN');
-        
         const { name, department, position, hireDate, education, age, salary, gender } = employeeData;
 
         // التحقق من وجود القسم
-        const deptResult = await client.query('SELECT id FROM departments WHERE name = $1', [department]);
+        const deptResult = await getAsync('SELECT id FROM departments WHERE name = ?', [department]);
         
-        if (deptResult.rows.length === 0) {
+        if (!deptResult) {
             throw new Error(`القسم "${department}" غير موجود`);
         }
         
-        const departmentId = deptResult.rows[0].id;
+        const departmentId = deptResult.id;
 
         // التحقق من عدم وجود موظف بنفس الاسم في نفس القسم
-        const duplicateCheck = await client.query(
-            'SELECT id FROM employees WHERE name = $1 AND department_id = $2 AND is_active = true', 
+        const duplicateCheck = await getAsync(
+            'SELECT id FROM employees WHERE name = ? AND department_id = ? AND is_active = 1', 
             [name, departmentId]
         );
         
-        if (duplicateCheck.rows.length > 0) {
+        if (duplicateCheck) {
             throw new Error('يوجد موظف بنفس الاسم في هذا القسم');
         }
 
         // إضافة الموظف
-        const result = await client.query(`
+        const result = await runAsync(`
             INSERT INTO employees (name, department_id, position, hire_date, education, age, salary, gender)
-            VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-            RETURNING *
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         `, [name, departmentId, position || '', hireDate, education || '', age, salary, gender || '']);
 
-        await client.query('COMMIT');
+        // جلب الموظف المضاف
+        const newEmployee = await getAsync('SELECT * FROM employees WHERE id = ?', [result.id]);
         
-        if (result.rows.length === 0) {
+        if (!newEmployee) {
             throw new Error('فشل في إضافة الموظف');
         }
         
-        return result.rows[0];
+        return newEmployee;
         
     } catch (error) {
-        await client.query('ROLLBACK');
         console.error('خطأ في إضافة الموظف:', error.message);
         throw error;
-    } finally {
-        client.release();
     }
 }
 
@@ -173,28 +210,28 @@ async function getAllEmployees(filters = {}) {
 
         if (filters.departmentId) {
             params.push(filters.departmentId);
-            query += ` AND e.department_id = $${params.length}`;
+            query += ` AND e.department_id = ?`;
         }
 
         if (filters.dateFrom) {
             params.push(filters.dateFrom);
-            query += ` AND e.hire_date >= $${params.length}`;
+            query += ` AND e.hire_date >= ?`;
         }
 
         if (filters.dateTo) {
             params.push(filters.dateTo);
-            query += ` AND e.hire_date <= $${params.length}`;
+            query += ` AND e.hire_date <= ?`;
         }
 
         if (filters.departmentName) {
             params.push(filters.departmentName);
-            query += ` AND d.name = $${params.length}`;
+            query += ` AND d.name = ?`;
         }
 
         query += ' ORDER BY e.created_at DESC';
 
-        const result = await pool.query(query, params);
-        return result.rows;
+        const result = await allAsync(query, params);
+        return result;
     } catch (error) {
         console.error('خطأ في جلب الموظفين:', error);
         throw error;
@@ -205,51 +242,45 @@ async function getAllEmployees(filters = {}) {
 async function getEmployeeStats(filters = {}) {
     try {
         // إجمالي الموظفين النشطين
-        const activeQuery = `
-            SELECT COUNT(*) as total_active,
-                   AVG(age) as avg_age,
-                   AVG(absence_days) as avg_absence
+        const activeStats = await getAsync(`
+            SELECT 
+                COUNT(*) as total_active,
+                AVG(age) as avg_age,
+                AVG(absence_days) as avg_absence
             FROM employees e
-            WHERE e.is_active = true
-        `;
+            WHERE e.is_active = 1
+        `);
 
         // معدل دوران الموظفين
-        const turnoverQuery = `
+        const turnoverStats = await getAsync(`
             SELECT 
-                COUNT(*) FILTER (WHERE is_active = false) as left_employees,
+                SUM(CASE WHEN is_active = 0 THEN 1 ELSE 0 END) as left_employees,
                 COUNT(*) as total_employees
             FROM employees e
-            WHERE hire_date >= NOW() - INTERVAL '1 year'
-        `;
+            WHERE hire_date >= date('now', '-1 year')
+        `);
 
         // توزيع الأقسام
-        const deptQuery = `
+        const deptStats = await allAsync(`
             SELECT d.name, COUNT(e.id) as count
             FROM departments d
-            LEFT JOIN employees e ON d.id = e.department_id AND e.is_active = true
+            LEFT JOIN employees e ON d.id = e.department_id AND e.is_active = 1
             GROUP BY d.id, d.name
-        `;
+        `);
 
         // توزيع المؤهلات
-        const educationQuery = `
+        const educationStats = await allAsync(`
             SELECT education, COUNT(*) as count
             FROM employees
-            WHERE is_active = true
+            WHERE is_active = 1 AND education IS NOT NULL AND education != ''
             GROUP BY education
-        `;
-
-        const [activeResult, turnoverResult, deptResult, educationResult] = await Promise.all([
-            pool.query(activeQuery),
-            pool.query(turnoverQuery),
-            pool.query(deptQuery),
-            pool.query(educationQuery)
-        ]);
+        `);
 
         return {
-            active: activeResult.rows[0],
-            turnover: turnoverResult.rows[0],
-            departments: deptResult.rows,
-            education: educationResult.rows
+            active: activeStats || { total_active: 0, avg_age: 0, avg_absence: 0 },
+            turnover: turnoverStats || { left_employees: 0, total_employees: 0 },
+            departments: deptStats || [],
+            education: educationStats || []
         };
     } catch (error) {
         console.error('خطأ في جلب الإحصائيات:', error);
@@ -260,13 +291,13 @@ async function getEmployeeStats(filters = {}) {
 // إضافة بيانات تجريبية
 async function seedDatabase() {
     try {
-        const count = await pool.query('SELECT COUNT(*) FROM employees');
-        if (parseInt(count.rows[0].count) > 0) {
+        const count = await getAsync('SELECT COUNT(*) as count FROM employees');
+        if (count && count.count > 0) {
             console.log('قاعدة البيانات تحتوي على بيانات بالفعل');
             return;
         }
 
-        const departments = await pool.query('SELECT * FROM departments');
+        const departments = await allAsync('SELECT * FROM departments');
         const names = [
             'أحمد محمد الأحمدي', 'فاطمة علي السعدي', 'محمود حسن القحطاني', 
             'نورا سعد العتيبي', 'خالد أحمد المطيري', 'سارة عبدالله الدوسري',
@@ -378,7 +409,7 @@ async function seedDatabase() {
         ];
 
         for (let i = 0; i < 100; i++) {
-            const dept = departments.rows[Math.floor(Math.random() * departments.rows.length)];
+            const dept = departments[Math.floor(Math.random() * departments.length)];
             const hireDate = new Date(2020 + Math.floor(Math.random() * 4), 
                                     Math.floor(Math.random() * 12), 
                                     Math.floor(Math.random() * 28));
@@ -392,17 +423,17 @@ async function seedDatabase() {
             else if (position.includes('رئيس') || position.includes('أول')) baseSalary = 8000;
             else if (position.includes('أخصائي')) baseSalary = 6000;
 
-            if (education === 'دكتوراه') baseSalary += 2000;
-            else if (education === 'ماجستير') baseSalary += 1000;
+            if (education.includes('دكتوراه')) baseSalary += 2000;
+            else if (education.includes('ماجستير')) baseSalary += 1000;
 
-            await pool.query(`
+            await runAsync(`
                 INSERT INTO employees (name, department_id, position, hire_date, education, age, salary, gender, absence_days)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `, [
                 names[Math.floor(Math.random() * names.length)],
                 dept.id,
                 position,
-                hireDate,
+                hireDate.toISOString().split('T')[0],
                 education,
                 22 + Math.floor(Math.random() * 38), // أعمار من 22 إلى 60
                 baseSalary + Math.floor(Math.random() * 3000), // تنويع في الراتب
@@ -417,11 +448,35 @@ async function seedDatabase() {
     }
 }
 
+// إغلاق قاعدة البيانات بأمان
+function closeDatabase() {
+    return new Promise((resolve, reject) => {
+        db.close((err) => {
+            if (err) {
+                reject(err);
+            } else {
+                console.log('تم إغلاق قاعدة البيانات');
+                resolve();
+            }
+        });
+    });
+}
+
 module.exports = {
-    pool,
+    db,
     initializeDatabase,
     addEmployee,
     getAllEmployees,
     getEmployeeStats,
-    seedDatabase
+    seedDatabase,
+    closeDatabase,
+    // للتوافق مع الكود الحالي
+    pool: {
+        query: async (sql, params = []) => {
+            if (sql.includes('SELECT 1')) {
+                return { rows: [{ '?column?': 1 }] };
+            }
+            return { rows: await allAsync(sql, params) };
+        }
+    }
 };
