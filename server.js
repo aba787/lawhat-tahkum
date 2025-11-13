@@ -407,8 +407,14 @@ app.post('/api/employees', async (req, res) => {
         if (employeeData.hireDate) {
             const hireDate = new Date(employeeData.hireDate);
             const today = new Date();
-            if (isNaN(hireDate.getTime()) || hireDate > today) {
-                validationErrors.push('تاريخ التعيين غير صحيح');
+            const minDate = new Date('1970-01-01'); // تاريخ أدنى منطقي
+            
+            if (isNaN(hireDate.getTime())) {
+                validationErrors.push('تنسيق تاريخ التعيين غير صحيح');
+            } else if (hireDate > today) {
+                validationErrors.push('تاريخ التعيين لا يمكن أن يكون في المستقبل');
+            } else if (hireDate < minDate) {
+                validationErrors.push('تاريخ التعيين قديم جداً');
             }
         }
 

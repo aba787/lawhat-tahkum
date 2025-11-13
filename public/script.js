@@ -59,7 +59,7 @@ async function fetchStats() {
 async function addNewEmployee(employeeData) {
     try {
         console.log('📤 إرسال بيانات الموظف:', employeeData);
-        
+
         const response = await fetch(`${API_BASE_URL}/api/employees`, {
             method: 'POST',
             headers: {
@@ -67,12 +67,12 @@ async function addNewEmployee(employeeData) {
             },
             body: JSON.stringify(employeeData),
         });
-        
+
         console.log('📡 استجابة الخادم:', response.status, response.statusText);
-        
+
         const responseData = await response.json();
         console.log('📋 بيانات الاستجابة:', responseData);
-        
+
         if (!response.ok) {
             // إظهار تفاصيل الخطأ للمطور
             if (responseData.details && Array.isArray(responseData.details)) {
@@ -81,15 +81,15 @@ async function addNewEmployee(employeeData) {
             }
             throw new Error(responseData.error || `HTTP error! status: ${response.status}`);
         }
-        
+
         return responseData;
     } catch (error) {
         console.error('❌ خطأ في إضافة الموظف:', error);
-        
+
         // في حالة عدم وجود اتصال، إضافة الموظف محلياً
         if (error.name === 'TypeError' && error.message.includes('fetch')) {
             console.warn('🔄 لا يوجد اتصال بالخادم، سيتم إضافة الموظف محلياً');
-            
+
             // إنشاء موظف وهمي للإضافة المحلية
             const localEmployee = {
                 id: Math.max(...employeesData.map(emp => emp.id || 0), 0) + 1,
@@ -101,18 +101,18 @@ async function addNewEmployee(employeeData) {
                 created_at: new Date().toISOString(),
                 updated_at: new Date().toISOString()
             };
-            
+
             // إضافة إلى البيانات المحلية
             employeesData.push(localEmployee);
             filteredData = [...employeesData];
-            
+
             return {
                 success: true,
                 employee: localEmployee,
                 message: 'تم إضافة الموظف محلياً (بدون اتصال بالخادم)'
             };
         }
-        
+
         throw error;
     }
 }
@@ -138,10 +138,10 @@ async function checkDatabaseHealth() {
             console.error('خطأ في استجابة الخادم:', response.status, response.statusText);
             return false;
         }
-        
+
         const healthData = await response.json();
         console.log('✅ فحص صحة قاعدة البيانات:', healthData);
-        
+
         return healthData.status === 'healthy' && healthData.database === 'connected';
     } catch (error) {
         console.error('❌ خطأ في التحقق من صحة قاعدة البيانات:', error);
@@ -1117,8 +1117,8 @@ function showAddEmployeeModal() {
                             </select>
                         </div>
                         <div class="form-group">
-                            <label>تاريخ التوظيف</label>
-                            <input type="date" id="empHireDate" value="${new Date().toISOString().split('T')[0]}">
+                            <label>تاريخ التعيين *</label>
+                            <input type="date" id="empHireDate" required max="${new Date().toISOString().split('T')[0]}" min="1970-01-01">
                         </div>
                     </div>
                     <div class="modal-actions">
@@ -1243,35 +1243,41 @@ function showAddEmployeeModal() {
     document.getElementById('addEmployeeForm').addEventListener('submit', async (e) => {
         e.preventDefault();
 
-        const employeeData = {
-            name: document.getElementById('empName').value.trim(),
-            department: document.getElementById('empDepartment').value,
-            position: document.getElementById('empPosition').value.trim(),
-            education: document.getElementById('empEducation').value.trim(),
-            age: parseInt(document.getElementById('empAge').value) || null,
-            salary: parseFloat(document.getElementById('empSalary').value) || null,
-            gender: document.getElementById('empGender').value,
-            hireDate: document.getElementById('empHireDate').value
-        };
+        // التحقق من صحة التاريخ قبل الإرسال
+    const hireDateInput = document.getElementById('empHireDate').value;
+    if (!hireDateInput) {
+        showError('يرجى إدخال تاريخ التعيين');
+        return;
+    }
 
-        // التحقق من البيانات المطلوبة
-        if (!employeeData.name) {
-            showError('يرجى إدخال اسم الموظف');
-            return;
-        }
-        if (!employeeData.department) {
-            showError('يرجى اختيار القسم');
-            return;
-        }
-        if (!employeeData.hireDate) {
-            showError('يرجى إدخال تاريخ التوظيف');
-            return;
-        }
+    const hireDate = new Date(hireDateInput);
+    const today = new Date();
+
+    if (isNaN(hireDate.getTime())) {
+        showError('تنسيق تاريخ التعيين غير صحيح');
+        return;
+    }
+
+    if (hireDate > today) {
+        showError('تاريخ التعيين لا يمكن أن يكون في المستقبل');
+        return;
+    }
+
+    const employeeData = {
+        name: document.getElementById('empName').value.trim(),
+        department: document.getElementById('empDepartment').value,
+        position: document.getElementById('empPosition').value.trim(),
+        hireDate: hireDateInput,
+        education: document.getElementById('empEducation').value.trim(),
+        age: document.getElementById('empAge').value,
+        salary: document.getElementById('empSalary').value,
+        gender: document.getElementById('empGender').value
+    };
 
         try {
             showLoading(true);
             const result = await addNewEmployee(employeeData);
-            
+
             if (result && result.success) {
                 showSuccess('تم إضافة الموظف بنجاح!');
                 modal.remove();
@@ -1362,34 +1368,34 @@ async function uploadFile() {
             'image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'image/bmp'
         ],
         'resume': [
-            'application/pdf', 
-            'application/msword', 
+            'application/pdf',
+            'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'text/plain',
             'application/rtf',
             'text/rtf'
         ],
         'contract': [
-            'application/pdf', 
-            'application/msword', 
+            'application/pdf',
+            'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'text/plain',
             'application/rtf',
             'text/rtf'
         ],
         'certificate': [
-            'application/pdf', 
-            'image/jpeg', 
-            'image/jpg', 
-            'image/png', 
+            'application/pdf',
+            'image/jpeg',
+            'image/jpg',
+            'image/png',
             'image/gif',
             'image/webp',
-            'application/msword', 
+            'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
         ],
         'document': [
-            'application/pdf', 
-            'application/msword', 
+            'application/pdf',
+            'application/msword',
             'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             'text/plain',
             'application/rtf',
@@ -1558,7 +1564,7 @@ async function updateServerStatus() {
         statusElement.innerHTML = '<i class="fas fa-circle" style="color: #f44336;"></i> قاعدة البيانات غير متاحة';
         statusElement.style.color = '#f44336';
         console.log('❌ قاعدة البيانات غير متاحة');
-        
+
         // عرض رسالة تحذيرية للمستخدم
         showError('قاعدة البيانات غير متاحة - يتم تحميل البيانات التجريبية المحلية');
     }
@@ -1569,7 +1575,7 @@ async function updateServerStatus() {
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', () => {
     console.log('🚀 بدء تهيئة التطبيق...');
-    
+
     try {
         initializeDashboard();
 
@@ -1587,7 +1593,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // فحص حالة الخادم كل 30 ثانية
         setInterval(updateServerStatus, 30000);
         updateServerStatus();
-        
+
         console.log('✅ تم تهيئة التطبيق بنجاح');
     } catch (error) {
         console.error('❌ خطأ في تهيئة التطبيق:', error);
