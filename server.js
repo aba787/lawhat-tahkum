@@ -24,7 +24,7 @@ const firebaseConfig = {
     apiKey: process.env.FIREBASE_API_KEY || "AIzaSyBBbtr_lbPaFU3Amy0hovgQILN0GSlGPuE",
     authDomain: process.env.FIREBASE_AUTH_DOMAIN || "lohthkm.firebaseapp.com",
     projectId: process.env.FIREBASE_PROJECT_ID || "lohthkm",
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "lohthkm.firebasestorage.app",
+    storageBucket: process.env.FIREBASE_STORAGE_BUCKET || "lohthkm.appspot.com",
     messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID || "563619887961",
     appId: process.env.FIREBASE_APP_ID || "1:563619887961:web:b22d973a3bb6754364ea48",
     measurementId: process.env.FIREBASE_MEASUREMENT_ID || "G-MKCZNVHVC4"
